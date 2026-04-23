@@ -1,0 +1,93 @@
+# AI News Aggregator - Source Configuration
+# This file defines which sources to monitor and how far back to look
+
+# Default lookback period in hours (how far back to search for articles/videos)
+default_hours: 24
+
+# YouTube channels to monitor
+youtube:
+  enabled: true
+  channels:
+    - name: "Anthropic"
+      channel_id: "UCrDwWp7EBBv4NwvScIpBDOA"
+    - name: "OpenAI"
+      channel_id: "UCXZCJLdBC09xxGZ6gcdrc6A"
+    - name: "AWS"
+      channel_id: "UCd6MoB9NC6uYN2grvUNT-Zg"
+    - name: "FreeCodeCamp"
+      channel_id: "UC8butISFwT-Wl7EV0hUK0BQ"
+    - name: "RealPython"
+      channel_id: "UCI0vQvr9aFn27yR6Ej6n5UA"
+    - name: "DataTalksClub"
+      channel_id: "UCDvErgK0j5ur3aLgn6U-LqQ"
+    - name: "DeepLearningAI"
+      channel_id: "UCcIXc5mJsHVYTZR1maL5l9w"
+    - name: "cloudsharecom"
+      channel_id: "UCzT7cotqZX8Vr31cxosBo_g"
+    - name: "coursera"
+      channel_id: "UCZ50rYSkYQG31YDEJm9Di_g"
+    - name: "CloudSecurityPodcast"
+      channel_id: "UC8jQKdbAHbv7LuIQOxN_mqQ"
+    - name: "LangChain"
+      channel_id: "UCC-lyoTfSrcJzA1ab3APAgw"
+    - name: "IBM Technology"
+      channel_id: "UCKWaEZ-_VweaEx1j62do_vQ"
+    - name: "MicrosoftDeveloper"
+      channel_id: "UCsMica-v34Irf9KVTh6xx-g"
+    - name: "GoogleCloudTech"
+      channel_id: "UCJS9pqu9BzkAMNTmzNMNhvg"
+    - name: "markets"
+      channel_id: "UCIALMKvObZNtJ6AmdCLP7Lg"
+    - name: "AI Engineer"
+      channel_id: "UCLKPca3kwwd-B59HNr-_lvA"
+    - name: "PY"
+      channel_id: "UCRk2Uipu6q_Se1hEALunAoQ"
+    - name: "Greg Isenberg"
+      channel_id: "UCPjNBjflYl0-HQtUvOx0Ibw"
+    - name: "KodeKloud"
+      channel_id: "UCSWj8mqQCcrcBlXPi4ThRDQ"
+    - name: "The Economist"
+      channel_id: "UC0p5jTq6Xx_DosDFxVXnWaQ"
+    - name: "Google for Developers"
+      channel_id: "UC_x5XG1OV2P6uZZ5FSM9Ttw"
+    - name: "Nvidia Developer"
+      channel_id: "UCBHcMCGaiJhv-ESTcWGJPcw"
+    - name: "Google DeepMind"
+      channel_id: "UCP7jMXSY2xbc3KCAE0MHQ-A"
+    - name: "MIT CSAIL"
+      channel_id: "UCP7jMXSY2xbc3KCAE0MHQ-A"
+    - name: "Bloomberg Technology"
+      channel_id: "UCrM7B7SL_g1edFOnmj-SDKg"
+    - name: "Cisco"
+      channel_id: "UCEWiIE6Htd8mvlOR6YQez1g"
+    - name: "Developers Digest"
+      channel_id: "UCuE6iwZKgGz8s6kznBRI9LQ"
+    - name: "AWS Events"
+      channel_id: "UCdoadna9HFHsxXWhafhNvKw"
+    - name: "AI Security Podcast"
+      channel_id: "UCuWq8fmaomKtuvnyb_m0zLQ"
+    - name: "New Machina"
+      channel_id: "UCJJZgkHmW6jLRXSKjMejLmg"
+    - name: "Chroma"
+      channel_id: "UCL6BAd8VmEBB16-2YCNvl2g"
+    - name: "Hugging Face"
+      channel_id: "UCHlNU7kIZhRgSbhHvFoy72w"
+    # Add more channels here as needed
+    # - name: "Example Channel"
+    #   channel_id: "UC_EXAMPLE_CHANNEL_ID"
+
+# OpenAI news (RSS feed)
+openai:
+  enabled: true
+  # No additional configuration needed - uses single RSS feed
+
+# Anthropic news (multiple RSS feeds)
+anthropic:
+  enabled: true
+  # Specify which feed types to scrape
+  # Options: news, engineering, research, red_team
+  feed_types:
+    - news
+    - engineering
+    - research
+    - red_team

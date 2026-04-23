@@ -1,0 +1,66 @@
+# User Profile Configuration
+# This profile is used by the Editor Agent to rank and curate AI news digests
+# based on your interests, background, and preferences.
+
+user:
+  name: "AI News Reader"
+  email_name: "PatrickCmd"  # Name to use in email greetings
+
+  # Professional background and expertise
+  background:
+    - "Software Engineer with 5+ years of experience"
+    - "Focus on machine learning and AI systems"
+    - "Building production AI applications"
+    - "Interest in AI infrastructure and MLOps"
+
+  # Primary areas of interest (ranked by priority)
+  interests:
+    primary:
+      - "Large Language Models (LLMs) and foundation models"
+      - "AI agents and autonomous systems"
+      - "Prompt engineering and structured output"
+      - "AI application development and deployment"
+      - "Production ML systems and infrastructure"
+
+    secondary:
+      - "AI safety and alignment"
+      - "Multimodal AI (vision, audio, etc.)"
+      - "AI model training and fine-tuning"
+      - "AI research breakthroughs"
+      - "AI ethics and governance"
+
+    specific_topics:
+      - "OpenAI GPT models and APIs"
+      - "Anthropic Claude and AI safety"
+      - "Vector databases and embeddings"
+      - "Retrieval-Augmented Generation (RAG)"
+      - "AI coding assistants and tools"
+      - "Real-world AI use cases and case studies"
+
+  # Content preferences
+  preferences:
+    content_type:
+      - "Technical deep-dives and tutorials"
+      - "Practical implementation guides"
+      - "Industry case studies and applications"
+      - "Product launches and API updates"
+      - "Research papers with practical implications"
+
+    avoid:
+      - "Marketing hype and buzzwords"
+      - "Speculative predictions without evidence"
+      - "Redundant news already covered"
+      - "Surface-level overviews"
+
+  # Professional goals
+  goals:
+    - "Stay updated on latest LLM capabilities and APIs"
+    - "Learn practical AI implementation patterns"
+    - "Understand emerging AI trends and tools"
+    - "Discover innovative AI use cases"
+    - "Track AI infrastructure developments"
+
+  # Time constraints
+  reading_time:
+    daily_limit: "15-20 minutes"
+    preferred_article_count: 5-10

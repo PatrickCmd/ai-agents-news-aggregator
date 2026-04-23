@@ -1,15 +1,36 @@
 [project]
 name = "ai-agent-news-aggregator"
 version = "0.1.0"
-description = "Add your description here"
 requires-python = ">=3.12"
-dependencies = [
-    "feedparser>=6.0.12",
-    "loguru>=0.7.3",
-    "openai-agents>=0.14.5",
-    "pydantic>=2.13.3",
-    "python-dotenv>=1.2.2",
-    "pyyaml>=6.0.3",
-    "supabase>=2.28.3",
-    "youtube-transcript-api>=1.2.4",
+description = "AI News Aggregator — shared workspace"
+readme = "README.md"
+
+[tool.uv.workspace]
+members = [
+    "packages/schemas",
+    "packages/config",
+    "packages/observability",
+    "packages/db",
 ]
+
+[tool.uv.sources]
+news_schemas = { workspace = true }
+news_config = { workspace = true }
+news_observability = { workspace = true }
+news_db = { workspace = true }
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+    "pytest-asyncio>=0.24",
+    "testcontainers[postgres]>=4.8",
+    "mypy>=1.11",
+    "ruff>=0.6",
+    "pre-commit>=3.8",
+    "detect-secrets>=1.5",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["packages", "tests"]
+pythonpath = ["."]

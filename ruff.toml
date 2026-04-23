@@ -1,0 +1,25 @@
+line-length = 100
+target-version = "py312"
+
+exclude = [
+    "services/scraper/_legacy",
+    "config",
+    "models",
+    "utils",
+    "scrapers",
+    "youtube_rss_pipeline",
+    "rss_parser_pipeline",
+    "rss-mcp",
+    ".venv",
+]
+
+[lint]
+select = ["E", "F", "W", "I", "N", "UP", "B", "A", "C4", "SIM", "RUF"]
+ignore = ["E501"]
+
+[lint.per-file-ignores]
+"**/tests/**" = ["B011"]
+"**/alembic/versions/**" = ["N999"]
+
+[format]
+quote-style = "double"

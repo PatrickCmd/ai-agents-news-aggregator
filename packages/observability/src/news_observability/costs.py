@@ -15,12 +15,10 @@ _log = get_logger("costs")
 
 # Prices per 1M tokens, USD. Update when OpenAI changes pricing.
 _PRICING: dict[str, tuple[Decimal, Decimal]] = {
-    # model          : (input_per_million, output_per_million)
-    "gpt-5.5": (Decimal("2.50"), Decimal("10.00")),
-    "gpt-5.5-mini": (Decimal("0.15"), Decimal("0.60")),
-    "gpt-5.5-nano": (Decimal("0.05"), Decimal("0.40")),
-    "gpt-5.4.1": (Decimal("2.00"), Decimal("8.00")),
-    "gpt-5.4.1-mini": (Decimal("0.40"), Decimal("1.60")),
+    # model         : (input_per_million, output_per_million)
+    "gpt-5.4": (Decimal("2.00"), Decimal("8.00")),
+    "gpt-5.4-mini": (Decimal("0.15"), Decimal("0.60")),
+    "gpt-5.4-nano": (Decimal("0.05"), Decimal("0.40")),
 }
 
 

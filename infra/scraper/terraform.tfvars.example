@@ -1,0 +1,7 @@
+# Copy to terraform.tfvars and fill in; terraform.tfvars is gitignored.
+# Most values default to sensible prod-ready choices — only override what you need.
+
+# aws_region       = "us-east-1"
+# aws_profile      = "aiengineer"
+# domain_name      = "patrickcmd.dev"
+# image_tag        = "latest"  # overridden by deploy.py with git SHA

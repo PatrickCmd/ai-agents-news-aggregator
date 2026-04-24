@@ -10,18 +10,6 @@ variable "aws_profile" {
   default     = "aiengineer"
 }
 
-variable "domain_name" {
-  description = "Root Route53 zone (no trailing dot)"
-  type        = string
-  default     = "patrickcmd.dev"
-}
-
-variable "scraper_subdomain" {
-  description = "Subdomain label for the scraper (scraper -> scraper.<domain>)"
-  type        = string
-  default     = "scraper"
-}
-
 variable "cluster_name" {
   description = "ECS cluster name (shared across sub-projects)"
   type        = string

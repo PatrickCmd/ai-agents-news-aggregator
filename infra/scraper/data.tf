@@ -19,11 +19,6 @@ data "aws_subnets" "default_vpc" {
   }
 }
 
-data "aws_route53_zone" "main" {
-  name         = "${var.domain_name}."
-  private_zone = false
-}
-
 locals {
   resolved_subnet_ids = (
     var.subnet_ids != null

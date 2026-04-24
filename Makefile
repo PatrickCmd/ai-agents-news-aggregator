@@ -12,6 +12,8 @@ RUFF := uv run ruff
         test-scraper-unit test-scraper-live \
         scraper-build scraper-deploy-build scraper-deploy \
         scraper-serve scraper-ingest \
+        tf-bootstrap tf-scraper-init tf-scraper-plan tf-scraper-apply \
+        secrets-sync \
         migrate migrate-down migrate-rev migration-history migration-current \
         seed reset-db \
         clean tag-foundation tag-ingestion
@@ -81,6 +83,29 @@ scraper-serve: ## Run scraper FastAPI locally
 
 scraper-ingest: ## Run all pipelines locally and block until done
 	uv run python -m news_scraper ingest --lookback-hours 24
+
+# ---------- infra (terraform) ----------
+
+tf-bootstrap: ## One-time Terraform state-backend bootstrap
+	cd infra/bootstrap && terraform init && terraform apply
+
+tf-scraper-init: ## Initialize scraper Terraform (requires STATE_BUCKET=...)
+	@test -n "$(STATE_BUCKET)" || (echo "STATE_BUCKET required" && exit 1)
+	cd infra/scraper && terraform init \
+	  -backend-config="bucket=$(STATE_BUCKET)" \
+	  -backend-config="key=scraper/terraform.tfstate" \
+	  -backend-config="region=us-east-1" \
+	  -backend-config="profile=aiengineer"
+
+tf-scraper-plan: ## Show scraper Terraform plan
+	cd infra/scraper && terraform plan
+
+tf-scraper-apply: ## Apply scraper Terraform
+	cd infra/scraper && terraform apply
+
+secrets-sync: ## Push .env secrets into SSM (requires ENV=dev|prod)
+	@test -n "$(ENV)" || (echo "ENV required: make secrets-sync ENV=dev" && exit 1)
+	uv run python infra/scraper/sync_secrets.py --env $(ENV)
 
 # ---------- database ----------
 

@@ -39,3 +39,7 @@ dev = [
 asyncio_mode = "auto"
 testpaths = ["packages", "services", "tests"]
 pythonpath = ["."]
+markers = [
+    "live: tests that hit real external services (rss-mcp, YouTube, Playwright). Run with `pytest -m live`.",
+]
+addopts = "-m 'not live'"

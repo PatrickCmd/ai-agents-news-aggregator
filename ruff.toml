@@ -9,7 +9,10 @@ exclude = [
 
 [lint]
 select = ["E", "F", "W", "I", "N", "UP", "B", "A", "C4", "SIM", "RUF"]
-ignore = ["E501"]
+# E501: line length (handled by formatter).
+# UP047: PEP 695 generics — pre-commit's pinned mypy doesn't support them yet;
+#   keep TypeVar-based generics until the hook's mypy is bumped to >=1.13.
+ignore = ["E501", "UP047"]
 
 [lint.per-file-ignores]
 "**/tests/**" = ["B011"]

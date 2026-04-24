@@ -1,19 +1,150 @@
 # AI News Aggregator
 
-A simple and efficient news aggregator for AI-related content from multiple sources including YouTube channels, OpenAI blog, Anthropic blog etc.
+A multi-source pipeline that ingests YouTube, RSS, and web-search content, summarises each article with an LLM, ranks the top 10 items per user using an editor agent, and sends a personalised daily digest email.
 
-## Features
+## Current status
 
-- **YouTube RSS Scraping**: Automatically fetch latest videos from configured channels with transcript extraction
-- **Blog Post Scraping**: Scrape AI-related blog posts from OpenAI, Anthropic, and other sources, see @rss_feeds.md
-- **AI-Powered Digest Generation**: Automatically generate concise 2-3 sentence summaries using OpenAI's GPT-5.4-mini
-- **Intelligent Content Processing**: AI agent creates engaging titles and summaries for all articles
-- **Editor Agent Ranking**: AI-powered curation that ranks articles (0-100) based on your personal interests and profile
-- **A Web Search Agent**: Searching the web for AI related content from multiple sources using the playwright mcp server
-- **Customizable User Profiles**: YAML-based profiles to tailor article ranking to your specific needs
-- **Personalized Email Digests**: Beautiful HTML emails with AI-generated introductions, color-coded scores, and curated top articles
-- **Email Agent**: Generates warm, personalized email introductions using your name and interests
-- **Development & Production Modes**: Preview emails locally or send email via Rescend (Gmail, etc.)
-- **Scheduled Execution**: Automated daily scraping and digest generation
-- **PostgreSQL Storage**: Robust data storage with supabase
-- **Production Deployment**: Deployment to AWS lambda, ECS express mode, apigateway, cloudfront, and scheduled jobs
+Only **Sub-project #0 (Foundation)** is implemented. See [docs/superpowers/specs/](docs/superpowers/specs/) for the design spec and [docs/superpowers/plans/](docs/superpowers/plans/) for the implementation plan. The full sub-project breakdown (#0 through #6) is in [AGENTS.md](AGENTS.md).
+
+Architecture diagrams: [docs/architecture.md](docs/architecture.md).
+
+## What Foundation ships
+
+- `packages/schemas/` — Pydantic v2 cross-package contracts (`Article`, `UserProfile`, `Digest`, `EmailSend`, `AuditLog`)
+- `packages/config/` — env-backed settings + YAML loaders for `sources.yml` and `user_profile.yml`
+- `packages/observability/` — loguru logging, OpenAI + Langfuse tracing hook, `AuditLogger`, tenacity retry presets, prompt-injection sanitizer, structured-output validator, size caps
+- `packages/db/` — async SQLAlchemy 2 + Alembic migrations + one repository per aggregate, targeting Supabase Postgres
+- `scripts/seed_user.py` + `scripts/reset_db.py` dev utilities
+- 57 tests (unit + integration via `testcontainers-postgres`)
+- GitHub Actions CI (ruff + mypy + pytest) and pre-commit hooks (ruff, mypy, detect-secrets)
+
+## Prerequisites
+
+| Tool | Version | Purpose |
+|---|---|---|
+| Python | 3.12 | Declared in `.python-version` |
+| [uv](https://docs.astral.sh/uv/) | ≥ 0.4 | Workspace + dependency manager |
+| Docker | any | Used by `testcontainers-postgres` for integration tests |
+| Node.js | ≥ 20 | Only for the `rss-mcp` binary (used in sub-project #1) |
+| A Supabase project | — | Postgres 16. Create at https://supabase.com |
+
+## First-time setup
+
+### 1. Clone and install
+
+```sh
+git clone git@github.com:PatrickCmd/ai-agents-news-aggregator.git
+cd ai-agents-news-aggregator
+make install-dev                  # uv sync + pre-commit install
+```
+
+### 2. Configure environment
+
+```sh
+cp .env.example .env
+```
+
+Fill in `.env` with real values. Minimum required for Foundation:
+
+| Variable | Used by |
+|---|---|
+| `SUPABASE_DB_URL` | Alembic migrations (direct port 5432) |
+| `SUPABASE_POOLER_URL` | Runtime queries (pgbouncer; falls back to `SUPABASE_DB_URL`) |
+| `OPENAI_API_KEY` | Not used in Foundation; needed from sub-project #1 onwards |
+| `LANGFUSE_PUBLIC_KEY` / `LANGFUSE_SECRET_KEY` | Optional; tracing no-ops if unset |
+| `LOG_LEVEL` | Defaults to `INFO` |
+| `ENV` | `dev` / `staging` / `prod` |
+
+Both DB URLs use the SQLAlchemy-async scheme:
+
+```
+postgresql+asyncpg://<user>:<pwd>@<host>:<port>/<db>
+```
+
+For Supabase, grab the **Connection string → URI** from your project's Settings → Database page. Replace `postgresql://` with `postgresql+asyncpg://`.
+
+### 3. Run database migrations
+
+```sh
+make migrate                      # alembic upgrade head
+```
+
+This creates five tables (`articles`, `users`, `digests`, `email_sends`, `audit_logs`) plus indexes, CHECK constraints, and `set_updated_at` triggers. The migration reads `SUPABASE_DB_URL` from `.env`.
+
+Verify:
+
+```sh
+make migration-current            # shows the current revision on the DB
+```
+
+### 4. (Optional) Seed a dev user
+
+Uses placeholder `clerk_user_id='dev-seed-user'` until Clerk lands in sub-project #4.
+
+```sh
+make seed                         # uv run python scripts/seed_user.py
+```
+
+Override the email via `SEED_USER_EMAIL=you@example.com make seed`.
+
+### 5. Run tests
+
+```sh
+make test                         # all (Docker required for integration)
+make test-unit                    # no Docker needed
+make test-integration             # Docker required
+```
+
+## Day-to-day commands
+
+Everything is in the [Makefile](Makefile). `make help` prints them all.
+
+| Task | Command |
+|---|---|
+| Sync dependencies | `make install` |
+| Format code | `make fmt` |
+| Lint + format check | `make lint` |
+| Type-check | `make typecheck` |
+| Full CI-equivalent check | `make check` |
+| Run all pre-commit hooks | `make pre-commit` |
+| Apply new migrations | `make migrate` |
+| Roll back one migration | `make migrate-down` |
+| Create new migration | `make migrate-rev MSG="add foo column"` |
+| Destructive reset (dev DB only) | `make reset-db` |
+| Clean caches | `make clean` |
+
+## Database workflow
+
+New migrations go in `packages/db/src/news_db/alembic/versions/`. Autogenerate from model changes:
+
+```sh
+make migrate-rev MSG="add score column to articles"
+# review the generated file carefully
+make migrate                      # apply
+make migrate-down                 # revert if needed
+```
+
+`make reset-db` is guarded: it refuses to run unless the DB name in the URL contains `dev` or `local`. Your production Supabase DB named `postgres` is safe from this command.
+
+## Project conventions
+
+See [AGENTS.md](AGENTS.md) for the full conventions list. Highlights:
+
+- **No `supabase-py` at runtime** — SQLAlchemy is the only data-access layer.
+- **No raw dicts across package boundaries** — use Pydantic models from `news_schemas`.
+- **Every user-supplied prompt** must pass through `news_observability.sanitizer.sanitize_prompt_input()` before hitting an LLM.
+- **Every LLM response** must be validated via `news_observability.validators.validate_structured_output()`.
+- **Every agent decision** should log to `audit_logs` via `AuditLogger`.
+- **Frontend never talks to Supabase directly** — everything goes through FastAPI (sub-project #4).
+- **Conventional Commits** (`feat(db): …`, `fix(observability): …`).
+
+## Contributing
+
+1. Pick a sub-project (see `AGENTS.md §Sub-project decomposition`).
+2. Read its spec in `docs/superpowers/specs/`.
+3. Work against its plan in `docs/superpowers/plans/`.
+4. `make check` must be green before any commit or PR.
+
+## License
+
+TBD.

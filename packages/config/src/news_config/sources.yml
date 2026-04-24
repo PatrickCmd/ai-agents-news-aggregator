@@ -91,3 +91,67 @@ anthropic:
     - engineering
     - research
     - red_team
+
+# --------------------------------------------------------------------
+# RSS — blog feeds fetched via rss-mcp (Node MCP server) over stdio.
+# --------------------------------------------------------------------
+rss:
+  enabled: true
+  max_concurrent_feeds: 5
+  mcp_timeout_seconds: 60
+  feeds:
+    - name: aws_blog
+      url: https://feeds.feedburner.com/AmazonWebServicesBlog
+    - name: aws_bigdata
+      url: https://blogs.aws.amazon.com/bigdata/blog/feed/recentPosts.rss
+    - name: aws_compute
+      url: https://aws.amazon.com/blogs/compute/feed/
+    - name: aws_security
+      url: http://blogs.aws.amazon.com/security/blog/feed/recentPosts.rss
+    - name: aws_devops
+      url: https://blogs.aws.amazon.com/application-management/blog/feed/recentPosts.rss
+    - name: openai_news
+      url: https://openai.com/news/rss.xml
+    - name: anthropic_news
+      url: https://raw.githubusercontent.com/Olshansk/rss-feeds/main/feeds/feed_anthropic_news.xml
+    - name: anthropic_engineering
+      url: https://raw.githubusercontent.com/Olshansk/rss-feeds/main/feeds/feed_anthropic_engineering.xml
+    - name: anthropic_research
+      url: https://raw.githubusercontent.com/Olshansk/rss-feeds/main/feeds/feed_anthropic_research.xml
+    - name: anthropic_red_team
+      url: https://raw.githubusercontent.com/Olshansk/rss-feeds/main/feeds/feed_anthropic_red.xml
+    - name: gemini_releases
+      url: https://cloud.google.com/feeds/gemini-release-notes.xml
+    - name: dev_to
+      url: https://dev.to/feed
+    - name: freecodecamp
+      url: https://www.freecodecamp.org/news/rss
+    - name: google_devs
+      url: https://feeds.feedburner.com/GDBcode
+    - name: sitepoint
+      url: https://www.sitepoint.com/sitepoint.rss
+    - name: sd_times
+      url: https://sdtimes.com/feed/
+    - name: real_python
+      url: https://realpython.com/atom.xml?format=xml
+    - name: real_python_podcast
+      url: https://realpython.com/podcasts/rpp/feed?sfnsn=mo
+
+# --------------------------------------------------------------------
+# Web search — curated sites without reliable RSS, crawled by the
+# Playwright MCP + OpenAI Agents SDK agent.
+# --------------------------------------------------------------------
+web_search:
+  enabled: true
+  lookback_hours: 48
+  max_concurrent_sites: 2
+  sites:
+    - name: replit_blog
+      url: https://replit.com/blog
+      list_selector_hint: "Find recent posts listed on this blog page"
+    - name: cursor_blog
+      url: https://cursor.com/blog
+      list_selector_hint: "Find recent posts listed on this blog page"
+    - name: huggingface_blog
+      url: https://huggingface.co/blog
+      list_selector_hint: "Find recent posts listed on this blog page"

@@ -68,3 +68,54 @@ async def test_empty_feed_returns_empty(monkeypatch: pytest.MonkeyPatch) -> None
     )
     fetcher = FeedparserYouTubeFeedFetcher()
     assert await fetcher.list_recent_videos("UC_test") == []
+
+
+@pytest.mark.asyncio
+async def test_transcript_fetcher_returns_text_on_success(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from news_scraper.pipelines.youtube_adapters import YouTubeTranscriptApiFetcher
+
+    class _FakeAPI:
+        def __init__(self, proxy_config: object = None) -> None:
+            pass
+
+        def fetch(self, video_id: str, languages: list[str]) -> object:
+            return types.SimpleNamespace(
+                to_raw_data=lambda: [{"text": "hi", "start": 0.0, "duration": 1.0}]
+            )
+
+    def _fake_format(transcript: object) -> str:
+        return "hi"
+
+    monkeypatch.setattr("news_scraper.pipelines.youtube_adapters.YouTubeTranscriptApi", _FakeAPI)
+    monkeypatch.setattr(
+        "news_scraper.pipelines.youtube_adapters.TextFormatter",
+        lambda: types.SimpleNamespace(format_transcript=_fake_format),
+    )
+    fetcher = YouTubeTranscriptApiFetcher(proxy_enabled=False)
+    result = await fetcher.fetch("abc123")
+    assert result.text == "hi"
+    assert result.segments == [{"text": "hi", "start": 0.0, "duration": 1.0}]
+    assert result.error is None
+
+
+@pytest.mark.asyncio
+async def test_transcript_fetcher_graceful_degradation_on_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from news_scraper.pipelines.youtube_adapters import YouTubeTranscriptApiFetcher
+
+    class _FakeAPI:
+        def __init__(self, proxy_config: object = None) -> None:
+            pass
+
+        def fetch(self, video_id: str, languages: list[str]) -> object:
+            raise RuntimeError("YouTube is blocking requests")
+
+    monkeypatch.setattr("news_scraper.pipelines.youtube_adapters.YouTubeTranscriptApi", _FakeAPI)
+    fetcher = YouTubeTranscriptApiFetcher(proxy_enabled=False)
+    result = await fetcher.fetch("abc")
+    assert result.text is None
+    assert result.error is not None
+    assert "blocking" in result.error.lower()

@@ -8,8 +8,10 @@ from typing import Any
 
 import feedparser
 from news_observability.logging import get_logger
+from youtube_transcript_api import YouTubeTranscriptApi
+from youtube_transcript_api.formatters import TextFormatter
 
-from news_scraper.pipelines.adapters import VideoMetadata
+from news_scraper.pipelines.adapters import FetchedTranscript, VideoMetadata
 
 _log = get_logger("youtube_adapter")
 
@@ -46,3 +48,42 @@ class FeedparserYouTubeFeedFetcher:
             description=description,
             thumbnail_url=thumbnail_url,
         )
+
+
+class YouTubeTranscriptApiFetcher:
+    def __init__(
+        self,
+        *,
+        proxy_enabled: bool,
+        proxy_username: str = "",
+        proxy_password: str = "",
+    ) -> None:
+        self._proxy_enabled = proxy_enabled and bool(proxy_username) and bool(proxy_password)
+        self._proxy_username = proxy_username
+        self._proxy_password = proxy_password
+
+    async def fetch(self, video_id: str, languages: list[str] | None = None) -> FetchedTranscript:
+        return await asyncio.to_thread(self._fetch_sync, video_id, languages or ["en"])
+
+    def _fetch_sync(self, video_id: str, languages: list[str]) -> FetchedTranscript:
+        try:
+            api = self._build_api()
+            fetched = api.fetch(video_id, languages=languages)
+            segments = fetched.to_raw_data()
+            full_text = TextFormatter().format_transcript(fetched)
+            return FetchedTranscript(text=full_text, segments=segments, error=None)
+        except Exception as exc:
+            _log.info("transcript fetch failed for {}: {}", video_id, exc)
+            return FetchedTranscript(text=None, segments=None, error=str(exc))
+
+    def _build_api(self) -> Any:
+        if self._proxy_enabled:
+            from youtube_transcript_api.proxies import WebshareProxyConfig
+
+            return YouTubeTranscriptApi(
+                proxy_config=WebshareProxyConfig(
+                    proxy_username=self._proxy_username,
+                    proxy_password=self._proxy_password,
+                )
+            )
+        return YouTubeTranscriptApi()

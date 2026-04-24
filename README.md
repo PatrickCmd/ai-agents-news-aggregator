@@ -53,9 +53,9 @@ Fill in `.env` with real values. Minimum required for Foundation:
 
 | Variable | Used by |
 |---|---|
-| `SUPABASE_DB_URL` | Alembic migrations (direct port 5432) |
-| `SUPABASE_POOLER_URL` | Runtime queries (pgbouncer; falls back to `SUPABASE_DB_URL`) |
-| `OPENAI_API_KEY` | Not used in Foundation; needed from sub-project #1 onwards |
+| `SUPABASE_DB_URL` | Alembic migrations (Session pooler, port 5432) |
+| `SUPABASE_POOLER_URL` | Runtime queries (Transaction pooler, port 6543 — pgbouncer) |
+| `OPENAI_API_KEY` | Web-search agent in sub-project #1 onwards |
 | `LANGFUSE_PUBLIC_KEY` / `LANGFUSE_SECRET_KEY` | Optional; tracing no-ops if unset |
 | `LOG_LEVEL` | Defaults to `INFO` |
 | `ENV` | `dev` / `staging` / `prod` |
@@ -66,7 +66,13 @@ Both DB URLs use the SQLAlchemy-async scheme:
 postgresql+asyncpg://<user>:<pwd>@<host>:<port>/<db>
 ```
 
-For Supabase, grab the **Connection string → URI** from your project's Settings → Database page. Replace `postgresql://` with `postgresql+asyncpg://`.
+**Supabase connection strings (dashboard → Settings → Database → Connection string):**
+
+- **Session pooler** (`aws-0-<region>.pooler.supabase.com:5432`) → put in `SUPABASE_DB_URL`. Username is `postgres.<project-ref>` (the tenant suffix is mandatory).
+- **Transaction pooler** (`aws-0-<region>.pooler.supabase.com:6543`) → put in `SUPABASE_POOLER_URL`.
+- **Direct** (`db.<project>.supabase.co:5432`) — skip it. Newer Supabase projects are **IPv6-only** on this host, which fails DNS resolution on most residential/corp networks (`socket.gaierror: [Errno 8]`). Use the Session pooler instead.
+
+Replace `postgresql://` with `postgresql+asyncpg://` after copying from the dashboard.
 
 ### 3. Run database migrations
 

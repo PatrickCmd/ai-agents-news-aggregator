@@ -18,9 +18,7 @@ COPY packages/ ./packages/
 COPY services/scraper/pyproject.toml ./services/scraper/pyproject.toml
 COPY services/scraper/src ./services/scraper/src
 
-RUN uv sync --frozen --no-dev \
-  --package news_scraper \
-  --package news_db --package news_schemas --package news_config --package news_observability
+RUN uv sync --frozen --no-dev --package news_scraper
 
 COPY rss-mcp/dist ./rss-mcp/dist
 COPY rss-mcp/package.json ./rss-mcp/package.json

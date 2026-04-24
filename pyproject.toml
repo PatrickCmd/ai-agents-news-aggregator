@@ -35,5 +35,5 @@ dev = [
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
-testpaths = ["packages", "tests"]
+testpaths = ["packages", "services", "tests"]
 pythonpath = ["."]

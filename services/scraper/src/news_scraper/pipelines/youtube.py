@@ -1,0 +1,117 @@
+"""YouTube pipeline — feedparser + transcript API → ArticleIn upsert."""
+
+from __future__ import annotations
+
+import asyncio
+from datetime import UTC, datetime, timedelta
+from time import perf_counter
+from typing import Any, Protocol
+
+from news_observability.logging import get_logger
+from news_schemas.article import ArticleIn, SourceType
+from news_schemas.scraper_run import (
+    PipelineName,
+    ScraperRunStatus,
+    YouTubeStats,
+)
+
+from news_scraper.pipelines.adapters import (
+    FetchedTranscript,
+    TranscriptFetcher,
+    VideoMetadata,
+    YouTubeFeedFetcher,
+)
+
+_log = get_logger("youtube_pipeline")
+
+
+class _ArticleRepo(Protocol):
+    async def upsert_many(self, items: list[ArticleIn]) -> int: ...
+
+
+class YouTubePipeline:
+    name = PipelineName.YOUTUBE
+
+    def __init__(
+        self,
+        *,
+        fetcher: YouTubeFeedFetcher,
+        transcripts: TranscriptFetcher,
+        repo: _ArticleRepo,
+        channels: list[dict[str, str]],
+        transcript_concurrency: int = 3,
+    ) -> None:
+        self._fetcher = fetcher
+        self._transcripts = transcripts
+        self._repo = repo
+        self._channels = channels
+        self._transcript_concurrency = transcript_concurrency
+
+    async def run(self, *, lookback_hours: int) -> YouTubeStats:
+        t0 = perf_counter()
+        cutoff = datetime.now(UTC) - timedelta(hours=lookback_hours)
+        stats = YouTubeStats(status=ScraperRunStatus.SUCCESS)
+        sem = asyncio.Semaphore(self._transcript_concurrency)
+        seen: set[str] = set()
+        articles: list[ArticleIn] = []
+
+        async def process_video(v: VideoMetadata, channel_name: str) -> None:
+            async with sem:
+                transcript = await self._transcripts.fetch(v.video_id)
+            article = self._to_article(v, channel_name, transcript)
+            key = f"{article.source_name}::{article.external_id}"
+            if key in seen:
+                return
+            seen.add(key)
+            articles.append(article)
+            if transcript.text is not None:
+                stats.transcripts_fetched += 1
+            else:
+                stats.transcripts_failed += 1
+
+        async def process_channel(ch: dict[str, str]) -> None:
+            try:
+                videos = await self._fetcher.list_recent_videos(ch["channel_id"])
+            except Exception as exc:
+                stats.errors.append({"channel_id": ch["channel_id"], "error": str(exc)})
+                return
+            stats.fetched += len(videos)
+            recent = [v for v in videos if v.published_at is not None and v.published_at >= cutoff]
+            stats.skipped_old += len(videos) - len(recent)
+            await asyncio.gather(*(process_video(v, ch["name"]) for v in recent))
+
+        await asyncio.gather(*(process_channel(c) for c in self._channels))
+        stats.kept = len(articles)
+        try:
+            stats.inserted = await self._repo.upsert_many(articles)
+        except Exception as exc:
+            _log.exception("youtube upsert failed: {}", exc)
+            stats.status = ScraperRunStatus.FAILED
+            stats.errors.append({"stage": "upsert", "error": str(exc)})
+        stats.duration_seconds = perf_counter() - t0
+        return stats
+
+    @staticmethod
+    def _to_article(
+        v: VideoMetadata, channel_name: str, transcript: FetchedTranscript
+    ) -> ArticleIn:
+        raw: dict[str, Any] = {
+            "channel_id": v.channel_id,
+            "thumbnail_url": v.thumbnail_url,
+            "description": v.description,
+            "transcript_segments": transcript.segments,
+            "transcript_error": transcript.error,
+            "has_transcript": transcript.text is not None,
+        }
+        return ArticleIn(
+            source_type=SourceType.YOUTUBE,
+            source_name=channel_name,
+            external_id=v.video_id,
+            title=v.title,
+            url=v.url,  # type: ignore[arg-type]
+            author=channel_name,
+            published_at=v.published_at,
+            content_text=transcript.text,
+            tags=[],
+            raw=raw,
+        )

@@ -1,0 +1,16 @@
+.venv
+**/__pycache__
+**/*.pyc
+.mypy_cache
+.ruff_cache
+.pytest_cache
+.coverage
+htmlcov
+services/scraper/_legacy
+services/scraper/tests
+tests
+docs
+rss-mcp/node_modules
+rss-mcp/src
+**/.env
+**/.git

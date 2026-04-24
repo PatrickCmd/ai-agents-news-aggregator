@@ -1,9 +1,8 @@
 """Scraper deploy orchestrator.
 
 Two modes:
-  build   — docker build + push to ECR (works standalone; needs ECR repo to exist)
-  deploy  — calls into #6's Terraform to update the ECS service (blocked until
-            that module lands; raises a clear error until then)
+  build   — docker build + push to ECR (works standalone)
+  deploy  — build + push + terraform apply to update the ECS Express service
 
 Examples:
   uv run python services/scraper/deploy.py --mode build
@@ -16,7 +15,9 @@ import argparse
 import os
 import subprocess
 import sys
+import time
 from pathlib import Path
+from urllib.request import urlopen
 
 import boto3
 
@@ -50,6 +51,10 @@ def _ecr_repo() -> str:
 
 def _git_sha() -> str:
     return subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
+
+
+def _terraform_dir() -> Path:
+    return Path(__file__).resolve().parents[2] / "infra" / "scraper"
 
 
 def _full_image_uri(session: boto3.Session, tag: str) -> str:
@@ -96,6 +101,40 @@ def _push_image(session: boto3.Session, sha_tag: str) -> None:
     print(f"pushed {uri_latest}")
 
 
+def _scraper_endpoint() -> str:
+    """Read the auto-provisioned ECS Express endpoint from terraform output."""
+    result = subprocess.run(
+        ["terraform", "output", "-raw", "scraper_endpoint"],
+        cwd=_terraform_dir(),
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    return result.stdout.strip()
+
+
+def _smoke_healthz(url: str) -> None:
+    """Curl /healthz; assert 200 and git_sha matches HEAD. Retries up to 3 min."""
+    expected = _git_sha()
+    deadline = time.time() + 180
+    last_err: Exception | None = None
+    while time.time() < deadline:
+        try:
+            with urlopen(url, timeout=10) as resp:
+                body = resp.read().decode()
+                if f'"git_sha":"{expected}"' in body:
+                    print(f"healthz OK: {body}")
+                    return
+                print(f"healthz returned old sha: {body}; retrying...")
+        except Exception as exc:
+            last_err = exc
+            print(f"healthz attempt failed: {exc}; retrying...")
+        time.sleep(10)
+    raise RuntimeError(
+        f"healthz did not reach expected git_sha={expected} within 3 min: {last_err}"
+    )
+
+
 def cmd_build() -> int:
     session = _session()
     _ecr_login(session)
@@ -106,27 +145,55 @@ def cmd_build() -> int:
 
 
 def cmd_deploy(env: str) -> int:
-    tf_dir = Path(__file__).resolve().parents[2] / "infra" / "envs" / env
+    """Build + push + terraform apply + smoke test."""
+    if cmd_build() != 0:
+        return 1
+
+    tf_dir = _terraform_dir()
     if not tf_dir.exists():
         print(
-            f"ERROR: {tf_dir} does not exist yet. #6 Terraform must be in "
-            "place before `deploy` can run. Use --mode build until then.",
+            f"ERROR: {tf_dir} does not exist. Run the bootstrap + scraper init first.",
             file=sys.stderr,
         )
         return 3
+
     sha = _git_sha()
+    tf_env = {**os.environ, "AWS_PROFILE": _profile()}
+
+    # Select workspace (create if missing)
+    try:
+        subprocess.run(
+            ["terraform", "workspace", "select", env],
+            cwd=tf_dir,
+            check=True,
+            env=tf_env,
+        )
+    except subprocess.CalledProcessError:
+        subprocess.run(
+            ["terraform", "workspace", "new", env],
+            cwd=tf_dir,
+            check=True,
+            env=tf_env,
+        )
+
     subprocess.run(
         [
             "terraform",
             "apply",
-            "-replace=module.scraper.aws_ecs_service.this",
-            f"-var=image_tag={sha}",
             "-auto-approve",
+            f"-var=image_tag={sha}",
+            "-replace=aws_ecs_express_gateway_service.scraper",
         ],
         cwd=tf_dir,
         check=True,
-        env={**os.environ, "AWS_PROFILE": _profile()},
+        env=tf_env,
     )
+
+    # Smoke against the ECS-auto-provisioned HTTPS endpoint
+    endpoint = _scraper_endpoint()
+    if not endpoint.startswith(("http://", "https://")):
+        endpoint = f"https://{endpoint}"
+    _smoke_healthz(f"{endpoint}/healthz")
     return 0
 
 

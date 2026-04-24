@@ -19,7 +19,9 @@ def setup_logging(level: str | None = None, json_mode: bool | None = None) -> No
     - json_mode=True emits line-delimited JSON suitable for CloudWatch.
     - level defaults to the LOG_LEVEL env var, then INFO.
     """
-    resolved_level = (level or os.getenv("LOG_LEVEL", "INFO")).upper()
+    if not level:
+        level = os.getenv("LOG_LEVEL", "INFO")
+    resolved_level = level.upper()
     if json_mode is None:
         json_mode = os.getenv("LOG_JSON", "false").lower() == "true"
 

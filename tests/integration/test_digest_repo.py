@@ -1,6 +1,8 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
+from news_db.repositories.digest_repo import DigestRepository
+from news_db.repositories.user_repo import UserRepository
 from news_schemas.digest import DigestIn, DigestStatus, RankedArticle
 from news_schemas.user_profile import (
     Interests,
@@ -10,9 +12,6 @@ from news_schemas.user_profile import (
     UserProfile,
 )
 from sqlalchemy.ext.asyncio import AsyncSession
-
-from news_db.repositories.digest_repo import DigestRepository
-from news_db.repositories.user_repo import UserRepository
 
 
 def _profile() -> UserProfile:
@@ -39,7 +38,7 @@ async def test_create_update_status(session: AsyncSession):
     )
 
     digests = DigestRepository(session)
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     d = await digests.create(
         DigestIn(
             user_id=user.id,

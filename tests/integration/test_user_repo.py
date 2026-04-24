@@ -1,4 +1,5 @@
 import pytest
+from news_db.repositories.user_repo import UserRepository
 from news_schemas.user_profile import (
     Interests,
     Preferences,
@@ -7,8 +8,6 @@ from news_schemas.user_profile import (
     UserProfile,
 )
 from sqlalchemy.ext.asyncio import AsyncSession
-
-from news_db.repositories.user_repo import UserRepository
 
 
 def _profile() -> UserProfile:

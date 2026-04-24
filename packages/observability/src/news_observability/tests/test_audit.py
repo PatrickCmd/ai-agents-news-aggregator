@@ -1,6 +1,6 @@
 import pytest
-
 from news_schemas.audit import AgentName, AuditLogIn, DecisionType
+
 from news_observability.audit import AuditLogger
 
 

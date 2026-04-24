@@ -35,6 +35,7 @@ def configure_tracing(enable_langfuse: bool = True) -> TracingState:
     if enable_langfuse and _langfuse_keys_present():
         try:
             from langfuse import Langfuse  # noqa: F401
+
             # Registering an OpenAI-Agents-SDK trace processor is done here.
             # Full wiring lives in sub-project #2; Foundation only verifies setup.
             langfuse_enabled = True

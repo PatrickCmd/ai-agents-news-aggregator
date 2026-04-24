@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import UUID
 
 from news_schemas.user_profile import UserIn, UserOut, UserProfile
@@ -56,7 +56,7 @@ class UserRepository:
         row = await self._session.get(User, user_id)
         if row is None:
             raise ValueError(f"user not found: {user_id}")
-        row.profile_completed_at = datetime.now(timezone.utc)
+        row.profile_completed_at = datetime.now(UTC)
         await self._session.commit()
         await self._session.refresh(row)
         return UserOut.model_validate(row, from_attributes=True)

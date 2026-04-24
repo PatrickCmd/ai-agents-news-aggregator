@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from news_schemas.article import ArticleIn, ArticleOut, SourceType
 from sqlalchemy import select
@@ -45,7 +45,7 @@ class ArticleRepository:
     async def get_recent(
         self, hours: int, source_types: list[SourceType] | None = None
     ) -> list[ArticleOut]:
-        cutoff = datetime.now(timezone.utc) - timedelta(hours=hours)
+        cutoff = datetime.now(UTC) - timedelta(hours=hours)
         stmt = select(Article).where(Article.published_at >= cutoff)
         if source_types:
             stmt = stmt.where(Article.source_type.in_([s.value for s in source_types]))
@@ -53,6 +53,6 @@ class ArticleRepository:
         rows = (await self._session.execute(stmt)).scalars().all()
         return [ArticleOut.model_validate(r, from_attributes=True) for r in rows]
 
-    async def get_by_id(self, id: int) -> ArticleOut | None:
-        row = await self._session.get(Article, id)
+    async def get_by_id(self, article_id: int) -> ArticleOut | None:
+        row = await self._session.get(Article, article_id)
         return ArticleOut.model_validate(row, from_attributes=True) if row else None

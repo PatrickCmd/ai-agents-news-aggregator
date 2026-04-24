@@ -14,6 +14,7 @@ from collections.abc import AsyncIterator, Iterator
 
 import pytest
 import pytest_asyncio
+from news_db import engine as engine_module
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
@@ -22,16 +23,13 @@ from sqlalchemy.ext.asyncio import (
 )
 from testcontainers.postgres import PostgresContainer
 
-from news_db import engine as engine_module
-
 
 @pytest.fixture(scope="session")
 def pg_container() -> Iterator[PostgresContainer]:
     with PostgresContainer("postgres:16-alpine") as c:
         url = c.get_connection_url()
-        async_url = (
-            url.replace("postgresql+psycopg2", "postgresql+asyncpg")
-            .replace("postgresql+psycopg", "postgresql+asyncpg")
+        async_url = url.replace("postgresql+psycopg2", "postgresql+asyncpg").replace(
+            "postgresql+psycopg", "postgresql+asyncpg"
         )
         if not async_url.startswith("postgresql+asyncpg://"):
             async_url = "postgresql+asyncpg://" + async_url.split("://", 1)[1]

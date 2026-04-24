@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 from pydantic import ValidationError
@@ -36,7 +36,7 @@ def test_article_in_rejects_empty_title():
 
 
 def test_article_out_has_id_and_timestamps():
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     a = ArticleOut(
         id=1,
         source_type=SourceType.YOUTUBE,

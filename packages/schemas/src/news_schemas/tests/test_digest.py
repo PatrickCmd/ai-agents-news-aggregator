@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import uuid4
 
 import pytest
@@ -8,12 +8,8 @@ from news_schemas.digest import DigestIn, DigestOut, DigestStatus, RankedArticle
 
 
 def test_ranked_article_score_bounds():
-    RankedArticle(
-        article_id=1, score=0, title="t", url="https://u", summary="s", why_ranked="w"
-    )
-    RankedArticle(
-        article_id=1, score=100, title="t", url="https://u", summary="s", why_ranked="w"
-    )
+    RankedArticle(article_id=1, score=0, title="t", url="https://u", summary="s", why_ranked="w")
+    RankedArticle(article_id=1, score=100, title="t", url="https://u", summary="s", why_ranked="w")
     with pytest.raises(ValidationError):
         RankedArticle(
             article_id=1,
@@ -37,7 +33,7 @@ def test_digest_in_rejects_more_than_10_ranked():
         )
         for i in range(11)
     ]
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     with pytest.raises(ValidationError):
         DigestIn(
             user_id=uuid4(),
@@ -52,7 +48,7 @@ def test_digest_in_rejects_more_than_10_ranked():
 
 
 def test_digest_out_round_trip():
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     d = DigestOut(
         id=1,
         user_id=uuid4(),

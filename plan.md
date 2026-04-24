@@ -1,6 +1,6 @@
 So we're going to build an AI news aggregator, right? I still have no idea what this is going to look like, but but
 
-I have a general idea of how I like to build things. 
+I have a general idea of how I like to build things.
 
 Let's start brainstorming. So what I want to build is an AI news aggregator where I can take multiple sources. So
 
@@ -16,7 +16,7 @@ time frame and we're going to do an LLM summary around that and then based on th
 
 some kind of agent system prompt. We can generate a daily digest which is going to be short
 
-snippets with a link to the original source. Now from the YouTube channels I want to be able to create a list of channels and then we want to get the latest videos from those channels. I think we can use the YouTube RSS feed for that and for for the blog posts we can just have URLs that we can scrape for that. Okay. So I want everything built in a Python back end. I want to use a Postgress SQL database supabase in this case. I want to use SQL alchemy in order to define the database models and then to also create the tables. 
+snippets with a link to the original source. Now from the YouTube channels I want to be able to create a list of channels and then we want to get the latest videos from those channels. I think we can use the YouTube RSS feed for that and for for the blog posts we can just have URLs that we can scrape for that. Okay. So I want everything built in a Python back end. I want to use a Postgress SQL database supabase in this case. I want to use SQL alchemy in order to define the database models and then to also create the tables.
 
 I want to have a backend and frontend.
 
@@ -31,7 +31,7 @@ The backend will consist of AWS lambda definitions, AWS ECS Express Mode, apigat
 - Has an agent (OpenAI Agents SDK) using the playwright mcp server to do web search on the internet and scrape AI related content from different sources (OpenAI, Anthropic, everything AI and LLMs etc) with structured outputs and Sends to supabase.
 - Handoff to the Digest Agent
 
-2. Digest Agent (In Lambda function). 
+2. Digest Agent (In Lambda function).
 - An agent (OpenAI agent SDK) that generates summaries of the recently added articles (Youtube video transcriptions, rss feeds entries, blog articles etc) with structured output andthen sending summary to supabase table
 
 3. Editor Agent (In Lambda Function)

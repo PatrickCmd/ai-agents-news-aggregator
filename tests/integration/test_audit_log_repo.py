@@ -1,10 +1,9 @@
 import pytest
+from news_db.models.audit_log import AuditLog
+from news_db.repositories.audit_log_repo import AuditLogRepository
 from news_schemas.audit import AgentName, AuditLogIn, DecisionType
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-
-from news_db.models.audit_log import AuditLog
-from news_db.repositories.audit_log_repo import AuditLogRepository
 
 
 @pytest.mark.asyncio

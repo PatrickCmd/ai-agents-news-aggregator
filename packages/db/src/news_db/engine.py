@@ -29,9 +29,7 @@ def get_engine(url: str | None = None) -> AsyncEngine:
         settings = DatabaseSettings()
         resolved = url or settings.supabase_pooler_url or settings.supabase_db_url
         if not resolved:
-            raise RuntimeError(
-                "No DB URL: set SUPABASE_POOLER_URL or SUPABASE_DB_URL"
-            )
+            raise RuntimeError("No DB URL: set SUPABASE_POOLER_URL or SUPABASE_DB_URL")
         _engine = create_async_engine(
             resolved,
             echo=False,

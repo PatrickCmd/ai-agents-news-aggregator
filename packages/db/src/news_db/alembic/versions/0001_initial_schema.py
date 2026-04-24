@@ -4,6 +4,7 @@ Revision ID: 0001
 Revises:
 Create Date: 2026-04-24
 """
+
 from __future__ import annotations
 
 import sqlalchemy as sa
@@ -122,13 +123,9 @@ def upgrade() -> None:
             "source_type in ('rss','youtube','web_search')",
             name="articles_source_type_check",
         ),
-        sa.UniqueConstraint(
-            "source_type", "external_id", name="articles_source_external_uk"
-        ),
+        sa.UniqueConstraint("source_type", "external_id", name="articles_source_external_uk"),
     )
-    op.create_index(
-        "ix_articles_source_pub", "articles", ["source_type", "published_at"]
-    )
+    op.create_index("ix_articles_source_pub", "articles", ["source_type", "published_at"])
     op.create_index("ix_articles_pub", "articles", ["published_at"])
     op.execute(
         "create trigger articles_set_updated_at before update on articles "

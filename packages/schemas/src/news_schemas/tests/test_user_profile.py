@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import uuid4
 
 import pytest
@@ -56,7 +56,7 @@ def test_user_in_requires_clerk_and_email():
 
 
 def test_user_out_round_trip():
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     u = UserOut(
         id=uuid4(),
         clerk_user_id="x",

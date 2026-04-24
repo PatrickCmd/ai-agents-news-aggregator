@@ -29,10 +29,10 @@ ytt_api = YouTubeTranscriptApi()
 ytt_api.fetch(video_id)
 ```
 
-> **Note:** By default, this will try to access the English transcript of the video. If your video has a different 
+> **Note:** By default, this will try to access the English transcript of the video. If your video has a different
 > language, or you are interested in fetching a transcript in a different language, please read the section below.
 
-> **Note:** Pass in the video ID, NOT the video URL. For a video with the URL `https://www.youtube.com/watch?v=12345` 
+> **Note:** Pass in the video ID, NOT the video URL. For a video with the URL `https://www.youtube.com/watch?v=12345`
 > the ID is `12345`.
 
 This will return a `FetchedTranscript` object looking somewhat like this:
@@ -76,7 +76,7 @@ last_snippet = fetched_transcript[-1]
 snippet_count = len(fetched_transcript)
 ```
 
-If you prefer to handle the raw transcript data you can call `fetched_transcript.to_raw_data()`, which will return 
+If you prefer to handle the raw transcript data you can call `fetched_transcript.to_raw_data()`, which will return
 a list of dictionaries:
 
 ```python
@@ -96,15 +96,15 @@ a list of dictionaries:
 ```
 ### Retrieve different languages
 
-You can add the `languages` param if you want to make sure the transcripts are retrieved in your desired language 
+You can add the `languages` param if you want to make sure the transcripts are retrieved in your desired language
 (it defaults to english).
 
 ```python
 YouTubeTranscriptApi().fetch(video_id, languages=['de', 'en'])
 ```
 
-It's a list of language codes in a descending priority. In this example it will first try to fetch the german 
-transcript (`'de'`) and then fetch the english transcript (`'en'`) if it fails to do so. If you want to find out 
+It's a list of language codes in a descending priority. In this example it will first try to fetch the german
+transcript (`'de'`) and then fetch the english transcript (`'en'`) if it fails to do so. If you want to find out
 which languages are available first, [have a look at `list()`](#list-available-transcripts).
 
 If you only want one language, you still need to format the `languages` argument as a list
@@ -115,7 +115,7 @@ YouTubeTranscriptApi().fetch(video_id, languages=['de'])
 
 ### Preserve formatting
 
-You can also add `preserve_formatting=True` if you'd like to keep HTML formatting elements such as `<i>` (italics) 
+You can also add `preserve_formatting=True` if you'd like to keep HTML formatting elements such as `<i>` (italics)
 and `<b>` (bold).
 
 ```python
@@ -131,15 +131,15 @@ ytt_api = YouTubeTranscriptApi()
 transcript_list = ytt_api.list(video_id)
 ```
 
-This will return a `TranscriptList` object which is iterable and provides methods to filter the list of transcripts for 
+This will return a `TranscriptList` object which is iterable and provides methods to filter the list of transcripts for
 specific languages and types, like:
 
 ```python
 transcript = transcript_list.find_transcript(['de', 'en'])
 ```
 
-By default this module always chooses manually created transcripts over automatically created ones, if a transcript in 
-the requested language is available both manually created and generated. The `TranscriptList` allows you to bypass this 
+By default this module always chooses manually created transcripts over automatically created ones, if a transcript in
+the requested language is available both manually created and generated. The `TranscriptList` allows you to bypass this
 default behaviour by searching for specific transcript types:
 
 ```python
@@ -150,7 +150,7 @@ transcript = transcript_list.find_manually_created_transcript(['de', 'en'])
 transcript = transcript_list.find_generated_transcript(['de', 'en'])
 ```
 
-The methods `find_generated_transcript`, `find_manually_created_transcript`, `find_transcript` return `Transcript` 
+The methods `find_generated_transcript`, `find_manually_created_transcript`, `find_transcript` return `Transcript`
 objects. They contain metadata regarding the transcript:
 
 ```python
@@ -178,8 +178,8 @@ This returns a `FetchedTranscript` object, just like `YouTubeTranscriptApi().fet
 
 ## Using Formatters
 Formatters are meant to be an additional layer of processing of the transcript you pass it. The goal is to convert a
-`FetchedTranscript` object into a consistent string of a given "format". Such as a basic text (`.txt`) or even formats 
-that have a defined specification such as JSON (`.json`), WebVTT (`.vtt`), SRT (`.srt`), Comma-separated format 
+`FetchedTranscript` object into a consistent string of a given "format". Such as a basic text (`.txt`) or even formats
+that have a defined specification such as JSON (`.json`), WebVTT (`.vtt`), SRT (`.srt`), Comma-separated format
 (`.csv`), etc...
 
 The `formatters` submodule provides a few basic formatters, which can be used as is, or extended to your needs:
@@ -229,7 +229,7 @@ with open('your_filename.json', 'w', encoding='utf-8') as json_file:
 
 **Passing extra keyword arguments**
 
-Since JSONFormatter leverages `json.dumps()` you can also forward keyword arguments into 
+Since JSONFormatter leverages `json.dumps()` you can also forward keyword arguments into
 `.format_transcript(transcript)` such as making your file output prettier by forwarding the `indent=2` keyword argument.
 
 ```python
@@ -237,9 +237,9 @@ json_formatted = JSONFormatter().format_transcript(transcript, indent=2)
 ```
 
 ### Custom Formatter Example
-You can implement your own formatter class. Just inherit from the `Formatter` base class and ensure you implement the 
-`format_transcript(self, transcript: FetchedTranscript, **kwargs) -> str` and 
-`format_transcripts(self, transcripts: List[FetchedTranscript], **kwargs) -> str` methods which should ultimately 
+You can implement your own formatter class. Just inherit from the `Formatter` base class and ensure you implement the
+`format_transcript(self, transcript: FetchedTranscript, **kwargs) -> str` and
+`format_transcripts(self, transcripts: List[FetchedTranscript], **kwargs) -> str` methods which should ultimately
 return a string when called on your formatter instance.
 
 ```python
@@ -255,45 +255,45 @@ class MyCustomFormatter(Formatter):
 
 ## CLI
 
-Execute the CLI script using the video ids as parameters and the results will be printed out to the command line:  
+Execute the CLI script using the video ids as parameters and the results will be printed out to the command line:
 
-```  
-youtube_transcript_api <first_video_id> <second_video_id> ...  
-```  
+```
+youtube_transcript_api <first_video_id> <second_video_id> ...
+```
 
-The CLI also gives you the option to provide a list of preferred languages:  
+The CLI also gives you the option to provide a list of preferred languages:
 
-```  
-youtube_transcript_api <first_video_id> <second_video_id> ... --languages de en  
+```
+youtube_transcript_api <first_video_id> <second_video_id> ... --languages de en
 ```
 
 You can also specify if you want to exclude automatically generated or manually created subtitles:
 
-```  
+```
 youtube_transcript_api <first_video_id> <second_video_id> ... --languages de en --exclude-generated
 youtube_transcript_api <first_video_id> <second_video_id> ... --languages de en --exclude-manually-created
 ```
 
-If you would prefer to write it into a file or pipe it into another application, you can also output the results as 
-json using the following line:  
+If you would prefer to write it into a file or pipe it into another application, you can also output the results as
+json using the following line:
 
-```  
+```
 youtube_transcript_api <first_video_id> <second_video_id> ... --languages de en --format json > transcripts.json
-```  
+```
 
 Translating transcripts using the CLI is also possible:
 
-```  
+```
 youtube_transcript_api <first_video_id> <second_video_id> ... --languages en --translate de
-```  
+```
 
 If you are not sure which languages are available for a given video you can call, to list all available transcripts:
 
-```  
+```
 youtube_transcript_api --list-transcripts <first_video_id>
 ```
 
-If a video's ID starts with a hyphen you'll have to mask the hyphen using `\` to prevent the CLI from mistaking it for 
+If a video's ID starts with a hyphen you'll have to mask the hyphen using `\` to prevent the CLI from mistaking it for
 a argument name. For example to get the transcript for the video with the ID `-abc123` run:
 
 ```

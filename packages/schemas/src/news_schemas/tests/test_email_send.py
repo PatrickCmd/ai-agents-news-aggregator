@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import uuid4
 
 from news_schemas.email_send import EmailSendIn, EmailSendOut, EmailSendStatus
@@ -16,7 +16,7 @@ def test_email_send_in_defaults():
 
 
 def test_email_send_out_round_trip():
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     e = EmailSendOut(
         id=1,
         user_id=uuid4(),

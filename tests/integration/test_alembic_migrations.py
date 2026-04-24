@@ -17,7 +17,9 @@ async def test_tables_exist(session: AsyncSession):
 
 @pytest.mark.asyncio
 async def test_articles_check_constraint_rejects_bad_source_type(session: AsyncSession):
-    with pytest.raises(Exception):
+    from sqlalchemy.exc import IntegrityError
+
+    with pytest.raises(IntegrityError):
         await session.execute(
             text(
                 "insert into articles (source_type, source_name, external_id, title, url) "

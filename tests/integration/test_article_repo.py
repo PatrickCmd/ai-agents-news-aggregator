@@ -1,16 +1,15 @@
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
+from news_db.repositories.article_repo import ArticleRepository
 from news_schemas.article import ArticleIn, SourceType
 from sqlalchemy.ext.asyncio import AsyncSession
-
-from news_db.repositories.article_repo import ArticleRepository
 
 
 @pytest.mark.asyncio
 async def test_upsert_and_get_recent(session: AsyncSession):
     repo = ArticleRepository(session)
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     items = [
         ArticleIn(
             source_type=SourceType.RSS,
@@ -35,7 +34,7 @@ async def test_upsert_and_get_recent(session: AsyncSession):
 @pytest.mark.asyncio
 async def test_get_recent_filters_by_source_type(session: AsyncSession):
     repo = ArticleRepository(session)
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     await repo.upsert_many(
         [
             ArticleIn(

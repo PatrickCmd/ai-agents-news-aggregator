@@ -140,12 +140,27 @@ uv run python -m news_scraper runs --limit 5
 ### Build and deploy
 
 ```sh
-make scraper-build               # local docker build
-make scraper-deploy-build        # build + push to ECR (requires AWS_PROFILE=aiengineer)
-make scraper-deploy              # full deploy via Terraform (requires #6 infra)
+# First time only — IAM + state backend + terraform init
+ADMIN_PROFILE=patrickcmd ./infra/setup-iam.sh              # IAM groups + aiengineer
+make tf-bootstrap                                           # S3 state bucket
+make tf-scraper-init STATE_BUCKET=news-aggregator-tf-state-<account>
+cd infra/scraper && terraform workspace new dev && cd ../..
+make tf-scraper-apply                                       # provision AWS infra
+make secrets-sync ENV=dev                                   # push .env to SSM
+
+# Iterate
+make scraper-build                   # local docker build
+make scraper-deploy-build            # build + push to ECR
+make scraper-deploy                  # end-to-end: build + push + terraform apply + smoke test
 ```
 
-See [docs/ecs-express-bootstrap.md](docs/ecs-express-bootstrap.md) for one-time AWS setup until sub-project #6 codifies it in Terraform.
+The scraper exposes an ECS-auto-provisioned HTTPS endpoint. Grab it from
+`terraform output scraper_endpoint` in `infra/scraper/`. Callers (#3 scheduler,
+#4 API) are AWS-internal and reach it without public DNS.
+
+See [infra/README.md](infra/README.md) for Terraform conventions.
+See [docs/ecs-express-bootstrap.md](docs/ecs-express-bootstrap.md) for the
+(minimal) manual prerequisites.
 
 ## Day-to-day commands
 

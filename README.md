@@ -4,7 +4,12 @@ A multi-source pipeline that ingests YouTube, RSS, and web-search content, summa
 
 ## Current status
 
-Only **Sub-project #0 (Foundation)** is implemented. See [docs/superpowers/specs/](docs/superpowers/specs/) for the design spec and [docs/superpowers/plans/](docs/superpowers/plans/) for the implementation plan. The full sub-project breakdown (#0 through #6) is in [AGENTS.md](AGENTS.md).
+**Sub-project #0 (Foundation)** and **Sub-project #1 (Ingestion)** are implemented.
+
+- Foundation ships the `packages/` workspace + schema. Tag `foundation-v0.1.1`.
+- Ingestion ships `services/scraper/` — a FastAPI + CLI service with three pipelines (YouTube RSS, blog RSS via rss-mcp, web search via Playwright MCP + OpenAI Agents SDK). Tag `ingestion-v0.2.0`.
+
+See [docs/superpowers/specs/](docs/superpowers/specs/) for design specs and [docs/superpowers/plans/](docs/superpowers/plans/) for implementation plans. Full sub-project breakdown (#0 through #6) is in [AGENTS.md](AGENTS.md).
 
 Architecture diagrams: [docs/architecture.md](docs/architecture.md).
 
@@ -94,6 +99,47 @@ make test                         # all (Docker required for integration)
 make test-unit                    # no Docker needed
 make test-integration             # Docker required
 ```
+
+## Running the scraper
+
+Requirements beyond the foundation prerequisites:
+
+- Node 20+ (needed by the rss-mcp binary and `@playwright/mcp@latest`)
+- `npx` on PATH
+- For transcripts: optional Webshare proxy credentials in `.env`
+
+### Serve the API locally
+
+```sh
+make scraper-serve
+# browse http://localhost:8000/docs
+```
+
+### Trigger an ingestion run
+
+```sh
+curl -X POST http://localhost:8000/ingest -H 'content-type: application/json' \
+  -d '{"lookback_hours":6}'
+```
+
+Or via CLI (blocks until done, exit code reflects status):
+
+```sh
+make scraper-ingest
+# or granular:
+uv run python -m news_scraper ingest-rss --lookback-hours 6
+uv run python -m news_scraper runs --limit 5
+```
+
+### Build and deploy
+
+```sh
+make scraper-build               # local docker build
+make scraper-deploy-build        # build + push to ECR (requires AWS_PROFILE=aiengineer)
+make scraper-deploy              # full deploy via Terraform (requires #6 infra)
+```
+
+See [docs/ecs-express-bootstrap.md](docs/ecs-express-bootstrap.md) for one-time AWS setup until sub-project #6 codifies it in Terraform.
 
 ## Day-to-day commands
 

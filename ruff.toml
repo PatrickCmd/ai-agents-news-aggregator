@@ -3,12 +3,6 @@ target-version = "py312"
 
 exclude = [
     "services/scraper/_legacy",
-    "config",
-    "models",
-    "utils",
-    "scrapers",
-    "youtube_rss_pipeline",
-    "rss_parser_pipeline",
     "rss-mcp",
     ".venv",
 ]

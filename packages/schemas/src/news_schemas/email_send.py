@@ -1,13 +1,13 @@
 from __future__ import annotations
 
 from datetime import datetime
-from enum import Enum
+from enum import StrEnum
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 
-class EmailSendStatus(str, Enum):
+class EmailSendStatus(StrEnum):
     PENDING = "pending"
     SENT = "sent"
     FAILED = "failed"

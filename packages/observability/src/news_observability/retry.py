@@ -26,7 +26,9 @@ class RetryableLLMError(Exception):
 _TRANSIENT_EXCEPTIONS = (ConnectionError, TimeoutError, OSError)
 
 
-def retry_transient(func: Callable[..., Awaitable[T]]) -> Callable[..., Awaitable[T]]:
+def retry_transient(
+    func: Callable[..., Awaitable[T]],
+) -> Callable[..., Awaitable[T]]:
     """Retry on network/transport errors (4 attempts, exponential backoff)."""
 
     async def wrapper(*args: object, **kwargs: object) -> T:
@@ -45,7 +47,9 @@ def retry_transient(func: Callable[..., Awaitable[T]]) -> Callable[..., Awaitabl
     return wrapper
 
 
-def retry_llm(func: Callable[..., Awaitable[T]]) -> Callable[..., Awaitable[T]]:
+def retry_llm(
+    func: Callable[..., Awaitable[T]],
+) -> Callable[..., Awaitable[T]]:
     """Retry on RetryableLLMError (5 attempts, slower backoff)."""
 
     async def wrapper(*args: object, **kwargs: object) -> T:

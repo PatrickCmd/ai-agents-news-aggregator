@@ -1,13 +1,13 @@
 from __future__ import annotations
 
 from datetime import datetime
-from enum import Enum
+from enum import StrEnum
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, HttpUrl
 
 
-class DigestStatus(str, Enum):
+class DigestStatus(StrEnum):
     PENDING = "pending"
     GENERATED = "generated"
     EMAILED = "emailed"

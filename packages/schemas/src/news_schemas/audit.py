@@ -1,20 +1,20 @@
 from __future__ import annotations
 
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
 
-class AgentName(str, Enum):
+class AgentName(StrEnum):
     DIGEST = "digest_agent"
     EDITOR = "editor_agent"
     EMAIL = "email_agent"
     WEB_SEARCH = "web_search_agent"
 
 
-class DecisionType(str, Enum):
+class DecisionType(StrEnum):
     SUMMARY = "summary"
     RANK = "rank"
     INTRO = "intro"

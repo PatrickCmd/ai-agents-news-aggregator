@@ -8,9 +8,8 @@ from __future__ import annotations
 
 import glob
 import os
-from typing import Any
 
-from agents.mcp import MCPServerStdio
+from agents.mcp import MCPServerStdio, MCPServerStdioParams
 
 _PLAYWRIGHT_USER_AGENT = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -18,8 +17,8 @@ _PLAYWRIGHT_USER_AGENT = (
 )
 
 
-def _rss_mcp_params(path: str) -> dict[str, Any]:
-    return {"command": "node", "args": [path]}
+def _rss_mcp_params(path: str) -> MCPServerStdioParams:
+    return MCPServerStdioParams(command="node", args=[path])
 
 
 def _find_chromium() -> str | None:
@@ -72,7 +71,7 @@ def create_playwright_mcp_server(*, timeout_seconds: int = 120) -> MCPServerStdi
     """Spawn @playwright/mcp@latest as a stdio MCP server. Use as `async with`."""
     return MCPServerStdio(
         name="playwright-mcp",
-        params={"command": "npx", "args": _playwright_args(docker=_in_docker())},
+        params=MCPServerStdioParams(command="npx", args=_playwright_args(docker=_in_docker())),
         cache_tools_list=True,
         client_session_timeout_seconds=timeout_seconds,
     )

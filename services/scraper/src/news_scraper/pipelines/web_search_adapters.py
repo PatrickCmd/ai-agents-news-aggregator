@@ -5,6 +5,7 @@ from __future__ import annotations
 from time import perf_counter
 
 from agents import Agent, Runner, trace
+from agents.mcp import MCPServer
 from news_config.loader import WebSearchSiteConfig
 from news_observability.costs import extract_usage
 from news_observability.logging import get_logger
@@ -17,7 +18,7 @@ from news_scraper.pipelines.adapters import CrawlOutcome, SiteCrawlResult
 _log = get_logger("web_search_adapter")
 
 
-def _build_agent(pw_mcp: object, *, model: str, lookback_hours: int) -> Agent:
+def _build_agent(pw_mcp: MCPServer, *, model: str, lookback_hours: int) -> Agent:
     instructions = (
         "You are a web crawler. You will be given a site URL and instructed to "
         "list recent posts. Use the Playwright browser tools to navigate to the "

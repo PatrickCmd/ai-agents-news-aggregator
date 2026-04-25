@@ -14,9 +14,12 @@ resource "aws_ecs_express_gateway_service" "scraper" {
     security_groups = null
   }]
 
+  # REQUEST_COUNT_PER_TARGET works with min_task_count=0 (CPU/memory don't,
+  # because there's no metric to track when no tasks are running). Target:
+  # average ~50 in-flight requests per task before scaling out.
   scaling_target = [{
-    auto_scaling_metric       = "AVERAGE_CPU"
-    auto_scaling_target_value = 70
+    auto_scaling_metric       = "REQUEST_COUNT_PER_TARGET"
+    auto_scaling_target_value = 50
     min_task_count            = var.min_capacity
     max_task_count            = var.max_capacity
   }]

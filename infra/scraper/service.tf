@@ -1,5 +1,5 @@
 resource "aws_ecs_express_gateway_service" "scraper" {
-  service_name            = "scraper"
+  service_name            = "scraper-${terraform.workspace}"
   cluster                 = aws_ecs_cluster.main.name
   execution_role_arn      = aws_iam_role.task_execution.arn
   infrastructure_role_arn = aws_iam_role.infrastructure.arn

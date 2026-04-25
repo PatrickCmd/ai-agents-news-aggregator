@@ -64,7 +64,7 @@ resource "aws_ecs_express_gateway_service" "scraper" {
     }
     environment {
       name  = "YOUTUBE_TRANSCRIPT_CONCURRENCY"
-      value = "3"
+      value = "1"
     }
     environment {
       name  = "RSS_FEED_CONCURRENCY"
@@ -118,7 +118,15 @@ resource "aws_ecs_express_gateway_service" "scraper" {
     }
   }
 
-  depends_on = [aws_ssm_parameter.sensitive]
+  depends_on = [
+    aws_ecs_cluster.main,
+    aws_ecr_repository.scraper,
+    aws_cloudwatch_log_group.scraper,
+    aws_iam_role_policy_attachment.task_execution_managed,
+    aws_iam_role_policy.task_execution_ssm,
+    aws_iam_role_policy_attachment.infrastructure_managed,
+    aws_ssm_parameter.sensitive,
+  ]
 
   tags = {
     Project = "news-aggregator"

@@ -49,4 +49,5 @@ def test_cmd_deploy_calls_terraform_workspace_and_apply(
     apply_cmd = apply_calls[0]
     assert "-auto-approve" in apply_cmd
     assert any(a.startswith("-var=image_tag=") for a in apply_cmd)
-    assert "-replace=aws_ecs_express_gateway_service.scraper" in apply_cmd
+    # Deliberately NO -replace flag (in-place updates avoid INACTIVE retention).
+    assert not any(a.startswith("-replace=") for a in apply_cmd)

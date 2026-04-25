@@ -178,13 +178,15 @@ def cmd_deploy(env: str) -> int:
             env=tf_env,
         )
 
+    # In-place update: changing image tag or env vars triggers an ECS rolling
+    # deployment automatically. We deliberately don't pass -replace because
+    # destroy+create hits the AWS INACTIVE service retention (1h block on name reuse).
     subprocess.run(
         [
             "terraform",
             "apply",
             "-auto-approve",
             f"-var=image_tag={sha}",
-            "-replace=aws_ecs_express_gateway_service.scraper",
         ],
         cwd=tf_dir,
         check=True,

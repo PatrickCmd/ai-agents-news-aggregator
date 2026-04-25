@@ -27,12 +27,18 @@ class _FakeTranscriptFetcher:
 
 
 class _CapturingArticleRepo:
-    def __init__(self) -> None:
+    def __init__(self, existing: set[str] | None = None) -> None:
         self.received: list[ArticleIn] = []
+        self._existing = existing or set()
 
     async def upsert_many(self, items: list[ArticleIn]) -> int:
         self.received.extend(items)
         return len(items)
+
+    async def get_existing_external_ids(
+        self, source_type: object, external_ids: list[str]
+    ) -> set[str]:
+        return {eid for eid in external_ids if eid in self._existing}
 
 
 @pytest.mark.asyncio
@@ -110,6 +116,62 @@ async def test_youtube_pipeline_skips_video_when_transcript_fails() -> None:
     assert stats.transcripts_failed == 1
     assert stats.kept == 0
     assert repo.received == []
+
+
+@pytest.mark.asyncio
+async def test_youtube_pipeline_skips_already_stored_videos() -> None:
+    """Pre-filter against DB so we don't waste transcript fetches."""
+    now = datetime.now(UTC)
+    videos = {
+        "UC1": [
+            VideoMetadata(
+                video_id="v-old-stored",
+                title="already in DB",
+                url="https://www.youtube.com/watch?v=v-old-stored",
+                channel_id="UC1",
+                published_at=now - timedelta(hours=1),
+                description="",
+                thumbnail_url=None,
+            ),
+            VideoMetadata(
+                video_id="v-new",
+                title="brand new",
+                url="https://www.youtube.com/watch?v=v-new",
+                channel_id="UC1",
+                published_at=now - timedelta(hours=1),
+                description="",
+                thumbnail_url=None,
+            ),
+        ]
+    }
+
+    fetch_calls: list[str] = []
+
+    class _CountingTranscriptFetcher:
+        async def fetch(
+            self, video_id: str, languages: list[str] | None = None
+        ) -> FetchedTranscript:
+            fetch_calls.append(video_id)
+            return FetchedTranscript(text="t", segments=[], error=None)
+
+    repo = _CapturingArticleRepo(existing={"v-old-stored"})
+    pipeline = YouTubePipeline(
+        fetcher=_FakeFeedFetcher(videos),
+        transcripts=_CountingTranscriptFetcher(),
+        repo=repo,
+        channels=[{"name": "chan", "channel_id": "UC1"}],
+        transcript_concurrency=1,
+    )
+    stats = await pipeline.run(lookback_hours=24)
+
+    # Only the new video has its transcript fetched
+    assert fetch_calls == ["v-new"]
+    assert stats.skipped_already_stored == 1
+    assert stats.transcripts_fetched == 1
+    assert stats.kept == 1
+    assert stats.inserted == 1
+    assert len(repo.received) == 1
+    assert repo.received[0].external_id == "v-new"
 
 
 @pytest.mark.asyncio

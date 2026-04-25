@@ -28,6 +28,7 @@ def test_youtube_stats_extends_pipeline_stats() -> None:
     s = YouTubeStats(status=ScraperRunStatus.SUCCESS, transcripts_fetched=3)
     assert s.transcripts_fetched == 3
     assert s.transcripts_failed == 0
+    assert s.skipped_already_stored == 0
 
 
 def test_web_search_stats_has_cost_fields() -> None:

@@ -27,6 +27,9 @@ _log = get_logger("youtube_pipeline")
 
 class _ArticleRepo(Protocol):
     async def upsert_many(self, items: list[ArticleIn]) -> int: ...
+    async def get_existing_external_ids(
+        self, source_type: SourceType, external_ids: list[str]
+    ) -> set[str]: ...
 
 
 class YouTubePipeline:
@@ -51,6 +54,32 @@ class YouTubePipeline:
         t0 = perf_counter()
         cutoff = datetime.now(UTC) - timedelta(hours=lookback_hours)
         stats = YouTubeStats(status=ScraperRunStatus.SUCCESS)
+
+        # Phase 1: fetch all RSS feeds in parallel, collect candidate (video, channel) pairs
+        async def fetch_channel(ch: dict[str, str]) -> list[tuple[VideoMetadata, str]]:
+            try:
+                videos = await self._fetcher.list_recent_videos(ch["channel_id"])
+            except Exception as exc:
+                stats.errors.append({"channel_id": ch["channel_id"], "error": str(exc)})
+                return []
+            stats.fetched += len(videos)
+            recent = [v for v in videos if v.published_at is not None and v.published_at >= cutoff]
+            stats.skipped_old += len(videos) - len(recent)
+            return [(v, ch["name"]) for v in recent]
+
+        per_channel = await asyncio.gather(*(fetch_channel(c) for c in self._channels))
+        candidates: list[tuple[VideoMetadata, str]] = [
+            pair for sublist in per_channel for pair in sublist
+        ]
+
+        # Phase 2: pre-filter against the DB so we don't re-fetch transcripts
+        # for videos already stored from a previous overlapping ingest run.
+        candidate_ids = [v.video_id for v, _ in candidates]
+        existing = await self._repo.get_existing_external_ids(SourceType.YOUTUBE, candidate_ids)
+        new_candidates = [(v, name) for v, name in candidates if v.video_id not in existing]
+        stats.skipped_already_stored = len(candidates) - len(new_candidates)
+
+        # Phase 3: transcript fetch (rate-limited) only for genuinely new videos
         sem = asyncio.Semaphore(self._transcript_concurrency)
         seen: set[str] = set()
         articles: list[ArticleIn] = []
@@ -72,18 +101,9 @@ class YouTubePipeline:
             articles.append(article)
             stats.transcripts_fetched += 1
 
-        async def process_channel(ch: dict[str, str]) -> None:
-            try:
-                videos = await self._fetcher.list_recent_videos(ch["channel_id"])
-            except Exception as exc:
-                stats.errors.append({"channel_id": ch["channel_id"], "error": str(exc)})
-                return
-            stats.fetched += len(videos)
-            recent = [v for v in videos if v.published_at is not None and v.published_at >= cutoff]
-            stats.skipped_old += len(videos) - len(recent)
-            await asyncio.gather(*(process_video(v, ch["name"]) for v in recent))
+        await asyncio.gather(*(process_video(v, name) for v, name in new_candidates))
 
-        await asyncio.gather(*(process_channel(c) for c in self._channels))
+        # Phase 4: upsert
         stats.kept = len(articles)
         try:
             stats.inserted = await self._repo.upsert_many(articles)

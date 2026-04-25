@@ -34,6 +34,7 @@ class PipelineStats(BaseModel):
 class YouTubeStats(PipelineStats):
     transcripts_fetched: int = 0
     transcripts_failed: int = 0
+    skipped_already_stored: int = 0
 
 
 class WebSearchStats(PipelineStats):

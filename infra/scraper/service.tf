@@ -26,7 +26,8 @@ resource "aws_ecs_express_gateway_service" "scraper" {
     container_port = 8000
 
     aws_logs_configuration {
-      log_group = aws_cloudwatch_log_group.scraper.name
+      log_group         = aws_cloudwatch_log_group.scraper.name
+      log_stream_prefix = "scraper"
     }
 
     # Non-sensitive config

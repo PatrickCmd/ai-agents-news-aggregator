@@ -10,7 +10,7 @@ from datetime import datetime
 from typing import Any, Protocol
 
 from news_config.loader import WebSearchSiteConfig
-from pydantic import BaseModel, Field, HttpUrl
+from pydantic import BaseModel, Field
 
 # -------- YouTube adapter types --------
 
@@ -54,8 +54,11 @@ class FeedFetcher(Protocol):
 
 
 class WebSearchItem(BaseModel):
+    # NOTE: url is `str`, not HttpUrl — OpenAI structured outputs reject
+    # JSON Schema `format: "uri"` that Pydantic emits for HttpUrl. We validate
+    # the URL downstream when constructing ArticleIn (which uses HttpUrl).
     title: str = Field(..., min_length=1)
-    url: HttpUrl
+    url: str = Field(..., min_length=1)
     author: str | None = None
     published_at: datetime | None = None
     summary: str | None = Field(default=None, max_length=2000)

@@ -15,7 +15,7 @@ resource "aws_ecs_express_gateway_service" "scraper" {
   }]
 
   scaling_target = [{
-    auto_scaling_metric       = "ECSServiceAverageCPUUtilization"
+    auto_scaling_metric       = "AVERAGE_CPU"
     auto_scaling_target_value = 70
     min_task_count            = var.min_capacity
     max_task_count            = var.max_capacity

@@ -14,6 +14,10 @@ RUFF := uv run ruff
         scraper-serve scraper-ingest \
         scraper-redeploy scraper-pause scraper-resume scraper-status \
         scraper-pin-up scraper-pin-down scraper-recover \
+        scraper-test-health scraper-test-ingest \
+        scraper-test-ingest-rss scraper-test-ingest-youtube scraper-test-ingest-web \
+        scraper-test-runs scraper-test-run \
+        scraper-logs scraper-logs-follow \
         scraper-bootstrap scraper-import-secrets \
         scraper-destroy-service scraper-destroy \
         tf-bootstrap tf-scraper-init tf-scraper-plan tf-scraper-apply \
@@ -109,6 +113,55 @@ scraper-pin-down: ## Re-enable autoscaling + scale to 0 (cost-saving mode)
 
 scraper-recover: ## Untaint service after a "Provider produced inconsistent result" error + reapply
 	cd infra/scraper && terraform untaint aws_ecs_express_gateway_service.scraper && terraform apply -auto-approve
+
+# ---------- scraper live endpoint testing ----------
+# All targets read the endpoint from `terraform output -raw scraper_endpoint`.
+# Override pipeline lookback windows with LOOKBACK=<hours>.
+
+LOOKBACK ?= 6
+
+scraper-test-health: ## curl /healthz on the live service
+	@URL=https://$$(cd infra/scraper && terraform output -raw scraper_endpoint) && \
+	  curl -s "$$URL/healthz" | jq
+
+scraper-test-ingest: ## POST /ingest (all 3 pipelines)  [LOOKBACK=hrs]
+	@URL=https://$$(cd infra/scraper && terraform output -raw scraper_endpoint) && \
+	  curl -s -X POST "$$URL/ingest" \
+	    -H 'content-type: application/json' \
+	    -d '{"lookback_hours":$(LOOKBACK)}' | jq
+
+scraper-test-ingest-rss: ## POST /ingest/rss  [LOOKBACK=hrs]
+	@URL=https://$$(cd infra/scraper && terraform output -raw scraper_endpoint) && \
+	  curl -s -X POST "$$URL/ingest/rss" \
+	    -H 'content-type: application/json' \
+	    -d '{"lookback_hours":$(LOOKBACK)}' | jq
+
+scraper-test-ingest-youtube: ## POST /ingest/youtube  [LOOKBACK=hrs]
+	@URL=https://$$(cd infra/scraper && terraform output -raw scraper_endpoint) && \
+	  curl -s -X POST "$$URL/ingest/youtube" \
+	    -H 'content-type: application/json' \
+	    -d '{"lookback_hours":$(LOOKBACK)}' | jq
+
+scraper-test-ingest-web: ## POST /ingest/web-search  [LOOKBACK=hrs]
+	@URL=https://$$(cd infra/scraper && terraform output -raw scraper_endpoint) && \
+	  curl -s -X POST "$$URL/ingest/web-search" \
+	    -H 'content-type: application/json' \
+	    -d '{"lookback_hours":$(LOOKBACK)}' | jq
+
+scraper-test-runs: ## GET /runs (5 most recent)
+	@URL=https://$$(cd infra/scraper && terraform output -raw scraper_endpoint) && \
+	  curl -s "$$URL/runs?limit=5" | jq
+
+scraper-test-run: ## GET /runs/$(RUN_ID) — requires RUN_ID=<uuid>
+	@test -n "$(RUN_ID)" || (echo "RUN_ID required: make scraper-test-run RUN_ID=<uuid>" && exit 1)
+	@URL=https://$$(cd infra/scraper && terraform output -raw scraper_endpoint) && \
+	  curl -s "$$URL/runs/$(RUN_ID)" | jq
+
+scraper-logs: ## Tail CloudWatch logs (last 5 min)  [SINCE=5m]
+	aws logs tail /ecs/news-scraper --since $${SINCE:-5m} --profile aiengineer
+
+scraper-logs-follow: ## Follow CloudWatch logs in real time
+	aws logs tail /ecs/news-scraper --follow --profile aiengineer
 
 # ---------- infra (terraform) ----------
 

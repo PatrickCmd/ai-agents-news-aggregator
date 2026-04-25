@@ -75,6 +75,33 @@ make scraper-deploy
 | Re-roll the running task with the latest `:latest` image | `make scraper-redeploy` |
 | Push code change + roll | `make scraper-deploy` |
 
+### Live endpoint testing
+
+| Task | Command |
+|---|---|
+| Health check | `make scraper-test-health` |
+| Trigger all 3 pipelines | `make scraper-test-ingest LOOKBACK=6` |
+| Trigger RSS only (cheapest) | `make scraper-test-ingest-rss LOOKBACK=6` |
+| Trigger YouTube only | `make scraper-test-ingest-youtube LOOKBACK=24` |
+| Trigger web-search only (LLM-cost) | `make scraper-test-ingest-web LOOKBACK=48` |
+| List recent runs | `make scraper-test-runs` |
+| Show one run by id | `make scraper-test-run RUN_ID=<uuid>` |
+| Tail CloudWatch logs (last 5 min) | `make scraper-logs SINCE=5m` |
+| Follow CloudWatch logs live | `make scraper-logs-follow` |
+
+`LOOKBACK` defaults to 6 hours. `SINCE` accepts AWS-CLI relative-time strings (e.g., `30m`, `2h`).
+
+Typical interactive flow:
+
+```sh
+make scraper-pin-up                       # keep service warm
+make scraper-test-ingest-rss LOOKBACK=3   # trigger small RSS run
+# capture run id from response, then:
+make scraper-test-run RUN_ID=<uuid>       # poll until status=success/partial
+make scraper-test-runs                    # list recent
+make scraper-pin-down                     # back to cost mode
+```
+
 **For interactive smoke tests:** use `scraper-pin-up` not `scraper-resume`. With autoscaling enabled, `min_capacity=0` plus low request count causes the autoscaler to drain your task back to 0 ~5 minutes after the last request — your follow-up `curl` then 503s. `pin-up` suspends the autoscaler so the task stays warm until you `pin-down`.
 
 ## Recovery from common errors

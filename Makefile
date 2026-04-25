@@ -13,7 +13,8 @@ RUFF := uv run ruff
         scraper-build scraper-deploy-build scraper-deploy \
         scraper-serve scraper-ingest \
         scraper-redeploy scraper-pause scraper-resume scraper-status \
-        scraper-bootstrap \
+        scraper-bootstrap scraper-import-secrets \
+        scraper-destroy-service scraper-destroy \
         tf-bootstrap tf-scraper-init tf-scraper-plan tf-scraper-apply \
         secrets-sync \
         migrate migrate-down migrate-rev migration-history migration-current \
@@ -121,6 +122,23 @@ scraper-bootstrap: ## Fresh-start: provision scraper infra except the service (E
 	@echo "Next steps:"
 	@echo "  make secrets-sync ENV=dev"
 	@echo "  make scraper-deploy"
+
+scraper-import-secrets: ## Import existing SSM params into state (fixes ParameterAlreadyExists)
+	@cd infra/scraper && for key in \
+	    supabase_db_url supabase_pooler_url openai_api_key \
+	    langfuse_public_key langfuse_secret_key \
+	    youtube_proxy_username youtube_proxy_password resend_api_key; do \
+	  terraform import "aws_ssm_parameter.sensitive[\"$$key\"]" "/news-aggregator/$$(terraform workspace show)/$$key" || true; \
+	done
+
+scraper-destroy-service: ## Destroy only the ECS service (keeps cluster/ECR/IAM/SSM/logs)
+	cd infra/scraper && terraform destroy \
+	  -target=aws_ecs_express_gateway_service.scraper
+
+scraper-destroy: ## DESTRUCTIVE: destroy ALL scraper AWS resources (ECS, ECR, IAM, SSM, logs)
+	@read -p "This will delete every scraper resource in AWS. Type 'destroy' to confirm: " confirm \
+	  && [ "$$confirm" = "destroy" ] || (echo "aborted" && exit 1)
+	cd infra/scraper && terraform destroy
 
 tf-scraper-init: ## Initialize scraper Terraform (requires STATE_BUCKET=...)
 	@test -n "$(STATE_BUCKET)" || (echo "STATE_BUCKET required" && exit 1)

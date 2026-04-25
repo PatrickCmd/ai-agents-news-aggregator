@@ -1,4 +1,4 @@
-SHELL := /bin/bash
+sSHELL := /bin/bash
 ALEMBIC := uv run alembic -c packages/db/alembic.ini
 PYTEST := uv run pytest
 MYPY := uv run mypy
@@ -68,8 +68,9 @@ test-scraper-unit: ## Scraper unit tests (no Docker required)
 test-scraper-live: ## Scraper live smoke tests (hits real rss-mcp + YouTube)
 	$(PYTEST) services/scraper/src/news_scraper/tests -m live -v
 
-scraper-build: ## Build scraper Docker image locally
-	docker build -f services/scraper/Dockerfile -t news-scraper:$(shell git rev-parse HEAD) \
+scraper-build: ## Build scraper Docker image locally (linux/amd64 for Fargate)
+	docker build --platform=linux/amd64 -f services/scraper/Dockerfile \
+	  -t news-scraper:$(shell git rev-parse HEAD) \
 	  --build-arg GIT_SHA=$(shell git rev-parse HEAD) .
 
 scraper-deploy-build: ## Build + push scraper image to ECR

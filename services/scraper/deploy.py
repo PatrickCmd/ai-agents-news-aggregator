@@ -78,6 +78,8 @@ def _build_image(sha_tag: str) -> None:
         [
             "docker",
             "build",
+            # Fargate runs linux/amd64 — force this even on Apple Silicon hosts.
+            "--platform=linux/amd64",
             "-f",
             str(Path(__file__).parent / "Dockerfile"),
             "-t",

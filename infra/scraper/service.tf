@@ -121,4 +121,11 @@ resource "aws_ecs_express_gateway_service" "scraper" {
     Project = "news-aggregator"
     Module  = "scraper"
   }
+
+  lifecycle {
+    # ECS Express auto-attaches its own service security group. We don't
+    # specify any in plan; ignore drift on that field so future applies
+    # don't try to remove the SG AWS just added.
+    ignore_changes = [network_configuration]
+  }
 }

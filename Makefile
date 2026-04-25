@@ -12,6 +12,7 @@ RUFF := uv run ruff
         test-scraper-unit test-scraper-live \
         scraper-build scraper-deploy-build scraper-deploy \
         scraper-serve scraper-ingest \
+        scraper-redeploy scraper-pause scraper-resume scraper-status \
         tf-bootstrap tf-scraper-init tf-scraper-plan tf-scraper-apply \
         secrets-sync \
         migrate migrate-down migrate-rev migration-history migration-current \
@@ -84,6 +85,18 @@ scraper-serve: ## Run scraper FastAPI locally
 
 scraper-ingest: ## Run all pipelines locally and block until done
 	uv run python -m news_scraper ingest --lookback-hours 24
+
+scraper-redeploy: ## Force ECS to pull the latest :latest tag (after make scraper-deploy-build)
+	./infra/scraper/service.sh redeploy
+
+scraper-pause: ## Scale ECS service to 0 (stop Fargate billing)
+	./infra/scraper/service.sh pause
+
+scraper-resume: ## Scale ECS service to 1 (bring it back up)
+	./infra/scraper/service.sh resume
+
+scraper-status: ## Show ECS service desired/running/pending + recent events
+	./infra/scraper/service.sh status
 
 # ---------- infra (terraform) ----------
 

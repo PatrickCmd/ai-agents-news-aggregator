@@ -11,7 +11,7 @@ resource "aws_ecs_express_gateway_service" "scraper" {
 
   network_configuration = [{
     subnets         = local.resolved_subnet_ids
-    security_groups = []
+    security_groups = null
   }]
 
   scaling_target = [{

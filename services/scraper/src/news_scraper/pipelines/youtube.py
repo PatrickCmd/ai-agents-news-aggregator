@@ -58,16 +58,19 @@ class YouTubePipeline:
         async def process_video(v: VideoMetadata, channel_name: str) -> None:
             async with sem:
                 transcript = await self._transcripts.fetch(v.video_id)
+            if transcript.text is None:
+                # No transcript -> skip the row entirely. Digest agents shouldn't
+                # see content-less articles. The next ingest run will retry the
+                # video if it's still in the channel's RSS window.
+                stats.transcripts_failed += 1
+                return
             article = self._to_article(v, channel_name, transcript)
             key = f"{article.source_name}::{article.external_id}"
             if key in seen:
                 return
             seen.add(key)
             articles.append(article)
-            if transcript.text is not None:
-                stats.transcripts_fetched += 1
-            else:
-                stats.transcripts_failed += 1
+            stats.transcripts_fetched += 1
 
         async def process_channel(ch: dict[str, str]) -> None:
             try:

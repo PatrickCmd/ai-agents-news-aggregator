@@ -80,7 +80,8 @@ async def test_youtube_pipeline_keeps_recent_videos_only() -> None:
 
 
 @pytest.mark.asyncio
-async def test_youtube_pipeline_records_transcript_failure_without_dropping_row() -> None:
+async def test_youtube_pipeline_skips_video_when_transcript_fails() -> None:
+    """Policy: don't insert articles without transcripts (consistency over coverage)."""
     now = datetime.now(UTC)
     videos = {
         "UC1": [
@@ -107,9 +108,8 @@ async def test_youtube_pipeline_records_transcript_failure_without_dropping_row(
     )
     stats = await pipeline.run(lookback_hours=24)
     assert stats.transcripts_failed == 1
-    assert stats.kept == 1
-    assert repo.received[0].content_text is None
-    assert repo.received[0].raw["transcript_error"] == "blocked"
+    assert stats.kept == 0
+    assert repo.received == []
 
 
 @pytest.mark.asyncio

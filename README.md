@@ -4,7 +4,12 @@ A multi-source pipeline that ingests YouTube, RSS, and web-search content, summa
 
 ## Current status
 
-Only **Sub-project #0 (Foundation)** is implemented. See [docs/superpowers/specs/](docs/superpowers/specs/) for the design spec and [docs/superpowers/plans/](docs/superpowers/plans/) for the implementation plan. The full sub-project breakdown (#0 through #6) is in [AGENTS.md](AGENTS.md).
+**Sub-project #0 (Foundation)** and **Sub-project #1 (Ingestion)** are implemented.
+
+- Foundation ships the `packages/` workspace + schema. Tag `foundation-v0.1.1`.
+- Ingestion ships `services/scraper/` — a FastAPI + CLI service with three pipelines (YouTube RSS, blog RSS via rss-mcp, web search via Playwright MCP + OpenAI Agents SDK). Tag `ingestion-v0.2.0`.
+
+See [docs/superpowers/specs/](docs/superpowers/specs/) for design specs and [docs/superpowers/plans/](docs/superpowers/plans/) for implementation plans. Full sub-project breakdown (#0 through #6) is in [AGENTS.md](AGENTS.md).
 
 Architecture diagrams: [docs/architecture.md](docs/architecture.md).
 
@@ -48,9 +53,9 @@ Fill in `.env` with real values. Minimum required for Foundation:
 
 | Variable | Used by |
 |---|---|
-| `SUPABASE_DB_URL` | Alembic migrations (direct port 5432) |
-| `SUPABASE_POOLER_URL` | Runtime queries (pgbouncer; falls back to `SUPABASE_DB_URL`) |
-| `OPENAI_API_KEY` | Not used in Foundation; needed from sub-project #1 onwards |
+| `SUPABASE_DB_URL` | Alembic migrations (Session pooler, port 5432) |
+| `SUPABASE_POOLER_URL` | Runtime queries (Transaction pooler, port 6543 — pgbouncer) |
+| `OPENAI_API_KEY` | Web-search agent in sub-project #1 onwards |
 | `LANGFUSE_PUBLIC_KEY` / `LANGFUSE_SECRET_KEY` | Optional; tracing no-ops if unset |
 | `LOG_LEVEL` | Defaults to `INFO` |
 | `ENV` | `dev` / `staging` / `prod` |
@@ -61,7 +66,13 @@ Both DB URLs use the SQLAlchemy-async scheme:
 postgresql+asyncpg://<user>:<pwd>@<host>:<port>/<db>
 ```
 
-For Supabase, grab the **Connection string → URI** from your project's Settings → Database page. Replace `postgresql://` with `postgresql+asyncpg://`.
+**Supabase connection strings (dashboard → Settings → Database → Connection string):**
+
+- **Session pooler** (`aws-0-<region>.pooler.supabase.com:5432`) → put in `SUPABASE_DB_URL`. Username is `postgres.<project-ref>` (the tenant suffix is mandatory).
+- **Transaction pooler** (`aws-0-<region>.pooler.supabase.com:6543`) → put in `SUPABASE_POOLER_URL`.
+- **Direct** (`db.<project>.supabase.co:5432`) — skip it. Newer Supabase projects are **IPv6-only** on this host, which fails DNS resolution on most residential/corp networks (`socket.gaierror: [Errno 8]`). Use the Session pooler instead.
+
+Replace `postgresql://` with `postgresql+asyncpg://` after copying from the dashboard.
 
 ### 3. Run database migrations
 
@@ -94,6 +105,62 @@ make test                         # all (Docker required for integration)
 make test-unit                    # no Docker needed
 make test-integration             # Docker required
 ```
+
+## Running the scraper
+
+Requirements beyond the foundation prerequisites:
+
+- Node 20+ (needed by the rss-mcp binary and `@playwright/mcp@latest`)
+- `npx` on PATH
+- For transcripts: optional Webshare proxy credentials in `.env`
+
+### Serve the API locally
+
+```sh
+make scraper-serve
+# browse http://localhost:8000/docs
+```
+
+### Trigger an ingestion run
+
+```sh
+curl -X POST http://localhost:8000/ingest -H 'content-type: application/json' \
+  -d '{"lookback_hours":6}'
+```
+
+Or via CLI (blocks until done, exit code reflects status):
+
+```sh
+make scraper-ingest
+# or granular:
+uv run python -m news_scraper ingest-rss --lookback-hours 6
+uv run python -m news_scraper runs --limit 5
+```
+
+### Build and deploy
+
+```sh
+# First time only — IAM + state backend + terraform init
+ADMIN_PROFILE=patrickcmd ./infra/setup-iam.sh              # IAM groups + aiengineer
+make tf-bootstrap                                           # S3 state bucket
+make tf-scraper-init STATE_BUCKET=news-aggregator-tf-state-<account>
+cd infra/scraper && terraform workspace new dev && cd ../..
+make tf-scraper-apply                                       # provision AWS infra
+make secrets-sync ENV=dev                                   # push .env to SSM
+
+# Iterate
+make scraper-build                   # local docker build
+make scraper-deploy-build            # build + push to ECR
+make scraper-deploy                  # end-to-end: build + push + terraform apply + smoke test
+```
+
+The scraper exposes an ECS-auto-provisioned HTTPS endpoint. Grab it from
+`terraform output scraper_endpoint` in `infra/scraper/`. Callers (#3 scheduler,
+#4 API) are AWS-internal and reach it without public DNS.
+
+See [infra/README.md](infra/README.md) for Terraform conventions.
+See [docs/ecs-express-bootstrap.md](docs/ecs-express-bootstrap.md) for the
+(minimal) manual prerequisites.
 
 ## Day-to-day commands
 

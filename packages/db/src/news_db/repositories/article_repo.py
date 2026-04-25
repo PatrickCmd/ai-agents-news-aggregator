@@ -56,3 +56,20 @@ class ArticleRepository:
     async def get_by_id(self, article_id: int) -> ArticleOut | None:
         row = await self._session.get(Article, article_id)
         return ArticleOut.model_validate(row, from_attributes=True) if row else None
+
+    async def get_existing_external_ids(
+        self, source_type: SourceType, external_ids: list[str]
+    ) -> set[str]:
+        """Return the subset of *external_ids* already stored for *source_type*.
+
+        Used by pipelines to skip expensive per-item work (transcript fetch,
+        agent crawl) for articles already in the DB.
+        """
+        if not external_ids:
+            return set()
+        stmt = select(Article.external_id).where(
+            Article.source_type == source_type.value,
+            Article.external_id.in_(external_ids),
+        )
+        rows = (await self._session.execute(stmt)).scalars().all()
+        return set(rows)

@@ -59,7 +59,7 @@ async def session(pg_container: PostgresContainer) -> AsyncIterator[AsyncSession
     async with engine.begin() as conn:
         await conn.execute(
             text(
-                "truncate table audit_logs, email_sends, digests, articles, users "
+                "truncate table audit_logs, email_sends, digests, articles, scraper_runs, users "
                 "restart identity cascade"
             )
         )

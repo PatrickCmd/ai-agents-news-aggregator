@@ -32,6 +32,41 @@ async def test_upsert_and_get_recent(session: AsyncSession):
 
 
 @pytest.mark.asyncio
+async def test_get_existing_external_ids_returns_only_stored(session: AsyncSession):
+    repo = ArticleRepository(session)
+    now = datetime.now(UTC)
+    await repo.upsert_many(
+        [
+            ArticleIn(
+                source_type=SourceType.YOUTUBE,
+                source_name="anthropic",
+                external_id="vid-abc",
+                title="t",
+                url="https://www.youtube.com/watch?v=vid-abc",
+                published_at=now,
+            ),
+            ArticleIn(
+                source_type=SourceType.RSS,
+                source_name="openai_news",
+                external_id="rss-1",
+                title="t",
+                url="https://openai.com/x",
+                published_at=now,
+            ),
+        ]
+    )
+    found = await repo.get_existing_external_ids(SourceType.YOUTUBE, ["vid-abc", "vid-missing"])
+    assert found == {"vid-abc"}
+
+    # Source type matters — RSS id shouldn't match a YouTube query
+    found_yt = await repo.get_existing_external_ids(SourceType.YOUTUBE, ["rss-1"])
+    assert found_yt == set()
+
+    # Empty input -> empty set, no DB hit
+    assert await repo.get_existing_external_ids(SourceType.YOUTUBE, []) == set()
+
+
+@pytest.mark.asyncio
 async def test_get_recent_filters_by_source_type(session: AsyncSession):
     repo = ArticleRepository(session)
     now = datetime.now(UTC)

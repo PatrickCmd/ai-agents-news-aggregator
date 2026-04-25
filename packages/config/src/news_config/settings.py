@@ -22,6 +22,7 @@ class DatabaseSettings(_Base):
 
 class OpenAISettings(_Base):
     api_key: str = Field(default="", alias="OPENAI_API_KEY")
+    model: str = Field(default="gpt-5.4-mini", alias="OPENAI_MODEL")
 
     @property
     def is_configured(self) -> bool:

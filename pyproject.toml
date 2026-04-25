@@ -11,6 +11,7 @@ members = [
     "packages/config",
     "packages/observability",
     "packages/db",
+    "services/scraper",
 ]
 
 [tool.uv.sources]
@@ -18,6 +19,7 @@ news_schemas = { workspace = true }
 news_config = { workspace = true }
 news_observability = { workspace = true }
 news_db = { workspace = true }
+news_scraper = { workspace = true }
 
 [dependency-groups]
 dev = [
@@ -29,9 +31,15 @@ dev = [
     "pre-commit>=3.8",
     "detect-secrets>=1.5",
     "types-PyYAML>=6.0",
+    "boto3>=1.42.95",
+    "httpx>=0.28.1",
 ]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
-testpaths = ["packages", "tests"]
+testpaths = ["packages", "services", "tests"]
 pythonpath = ["."]
+markers = [
+    "live: tests that hit real external services (rss-mcp, YouTube, Playwright). Run with `pytest -m live`.",
+]
+addopts = "-m 'not live'"

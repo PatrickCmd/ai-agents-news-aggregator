@@ -13,6 +13,7 @@ RUFF := uv run ruff
         scraper-build scraper-deploy-build scraper-deploy \
         scraper-serve scraper-ingest \
         scraper-redeploy scraper-pause scraper-resume scraper-status \
+        scraper-bootstrap \
         tf-bootstrap tf-scraper-init tf-scraper-plan tf-scraper-apply \
         secrets-sync \
         migrate migrate-down migrate-rev migration-history migration-current \
@@ -102,6 +103,24 @@ scraper-status: ## Show ECS service desired/running/pending + recent events
 
 tf-bootstrap: ## One-time Terraform state-backend bootstrap
 	cd infra/bootstrap && terraform init && terraform apply
+
+scraper-bootstrap: ## Fresh-start: provision scraper infra except the service (ECR/cluster/IAM/SSM/logs)
+	cd infra/scraper && terraform apply \
+	  -target=aws_ecr_repository.scraper \
+	  -target=aws_ecr_lifecycle_policy.scraper \
+	  -target=aws_ecs_cluster.main \
+	  -target=aws_cloudwatch_log_group.scraper \
+	  -target=aws_iam_role.task_execution \
+	  -target=aws_iam_role_policy_attachment.task_execution_managed \
+	  -target=aws_iam_role_policy.task_execution_ssm \
+	  -target=aws_iam_role.infrastructure \
+	  -target=aws_iam_role_policy_attachment.infrastructure_managed \
+	  -target=aws_iam_role.task \
+	  -target='aws_ssm_parameter.sensitive'
+	@echo
+	@echo "Next steps:"
+	@echo "  make secrets-sync ENV=dev"
+	@echo "  make scraper-deploy"
 
 tf-scraper-init: ## Initialize scraper Terraform (requires STATE_BUCKET=...)
 	@test -n "$(STATE_BUCKET)" || (echo "STATE_BUCKET required" && exit 1)

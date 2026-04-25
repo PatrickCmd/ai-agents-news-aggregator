@@ -60,7 +60,53 @@ Subsequent deploys (build new image + roll the service):
 
 ```sh
 make scraper-deploy
-# runs: docker build -> docker push -> terraform apply -replace=... -> smoke /healthz
+# runs: docker build -> docker push -> terraform apply -> smoke /healthz
+```
+
+## Day-to-day operations
+
+| Task | Command |
+|---|---|
+| Show service state | `make scraper-status` |
+| Pin service up for active testing (no auto-scale-in) | `make scraper-pin-up` |
+| Restore cost-saving mode (autoscaling on, scale to 0) | `make scraper-pin-down` |
+| Drain to 0 quickly without touching autoscaling | `make scraper-pause` |
+| Bring back to 1 | `make scraper-resume` |
+| Re-roll the running task with the latest `:latest` image | `make scraper-redeploy` |
+| Push code change + roll | `make scraper-deploy` |
+
+**For interactive smoke tests:** use `scraper-pin-up` not `scraper-resume`. With autoscaling enabled, `min_capacity=0` plus low request count causes the autoscaler to drain your task back to 0 ~5 minutes after the last request — your follow-up `curl` then 503s. `pin-up` suspends the autoscaler so the task stays warm until you `pin-down`.
+
+## Recovery from common errors
+
+### `Provider produced inconsistent result after apply`
+
+ECS Express auto-attaches a security group that the provider didn't predict in plan. Resource is **created in AWS** but flagged tainted in Terraform state. Fix:
+
+```sh
+make scraper-recover
+# untaints + reapplies. Outputs (scraper_endpoint) populate after this.
+```
+
+### `Express Gateway Service ... already exists in cluster`
+
+You ran a destroy+create (e.g., via `-replace`) but AWS retains the INACTIVE service record for ~1 hour, blocking name reuse. Either wait, or rename in `service.tf` (e.g., `scraper-${terraform.workspace}-2`).
+
+### `ParameterAlreadyExists` on SSM params
+
+The 8 SSM params exist in AWS but Terraform state lost track (e.g., after a partial destroy or running `make secrets-sync` outside Terraform). Fix:
+
+```sh
+make scraper-import-secrets
+# imports all 8 params into Terraform state; idempotent.
+```
+
+### Fresh-start (after `make scraper-destroy`)
+
+```sh
+make scraper-bootstrap        # ECR + cluster + IAM + SSM + logs (everything but the service)
+make secrets-sync ENV=dev     # push real .env values into SSM
+make scraper-deploy           # build + push image + create service
 ```
 
 ## Adding a new sub-project module

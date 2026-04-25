@@ -13,6 +13,7 @@ RUFF := uv run ruff
         scraper-build scraper-deploy-build scraper-deploy \
         scraper-serve scraper-ingest \
         scraper-redeploy scraper-pause scraper-resume scraper-status \
+        scraper-pin-up scraper-pin-down scraper-recover \
         scraper-bootstrap scraper-import-secrets \
         scraper-destroy-service scraper-destroy \
         tf-bootstrap tf-scraper-init tf-scraper-plan tf-scraper-apply \
@@ -97,8 +98,17 @@ scraper-pause: ## Scale ECS service to 0 (stop Fargate billing)
 scraper-resume: ## Scale ECS service to 1 (bring it back up)
 	./infra/scraper/service.sh resume
 
-scraper-status: ## Show ECS service desired/running/pending + recent events
+scraper-status: ## Show ECS service desired/running/pending + autoscaling + events
 	./infra/scraper/service.sh status
+
+scraper-pin-up: ## Pin service at 1 task (suspend autoscaling) for active testing
+	./infra/scraper/service.sh pin-up
+
+scraper-pin-down: ## Re-enable autoscaling + scale to 0 (cost-saving mode)
+	./infra/scraper/service.sh pin-down
+
+scraper-recover: ## Untaint service after a "Provider produced inconsistent result" error + reapply
+	cd infra/scraper && terraform untaint aws_ecs_express_gateway_service.scraper && terraform apply -auto-approve
 
 # ---------- infra (terraform) ----------
 

@@ -13,6 +13,7 @@ members = [
     "packages/db",
     "services/scraper",
     "services/agents/digest",
+    "services/agents/editor",
 ]
 
 [tool.uv.sources]
@@ -22,6 +23,7 @@ news_observability = { workspace = true }
 news_db = { workspace = true }
 news_scraper = { workspace = true }
 news_digest = { workspace = true }
+news_editor = { workspace = true }
 
 [dependency-groups]
 dev = [

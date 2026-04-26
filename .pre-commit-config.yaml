@@ -19,7 +19,7 @@ repos:
     hooks:
       - id: mypy
         args: [--config-file=mypy.ini]
-        files: ^(packages/.*/src/.*\.py$|services/scraper/src/.*\.py$|services/agents/digest/src/.*\.py$)
+        files: ^(packages/.*/src/.*\.py$|services/scraper/src/.*\.py$|services/agents/digest/src/.*\.py$|services/agents/editor/src/.*\.py$)
         exclude: /tests/
         additional_dependencies:
           - pydantic>=2.13

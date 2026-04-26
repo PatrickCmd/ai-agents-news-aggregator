@@ -17,3 +17,8 @@ output "account_id" {
   description = "AWS account ID"
   value       = data.aws_caller_identity.current.account_id
 }
+
+output "lambda_artifacts_bucket" {
+  description = "S3 bucket holding per-agent Lambda zip artifacts"
+  value       = aws_s3_bucket.lambda_artifacts.bucket
+}

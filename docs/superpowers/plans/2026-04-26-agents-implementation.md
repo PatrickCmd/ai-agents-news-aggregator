@@ -223,6 +223,8 @@ Add to `packages/db/src/news_db/tests/test_article_repo.py` (create the file if 
 # tests/integration/test_article_repo_summary.py
 from __future__ import annotations
 
+from datetime import UTC, datetime
+
 import pytest
 from news_db.repositories.article_repo import ArticleRepository
 from news_schemas.article import ArticleIn, SourceType
@@ -240,6 +242,7 @@ async def test_update_summary_persists(session: AsyncSession) -> None:
                 external_id="ext-1",
                 title="t",
                 url="https://example.com/1",
+                published_at=datetime.now(UTC),
             )
         ]
     )
@@ -303,6 +306,8 @@ git commit -m "feat(db): ArticleRepository.update_summary"
 # tests/integration/test_article_repo_summary_queries.py
 from __future__ import annotations
 
+from datetime import UTC, datetime
+
 import pytest
 from news_db.repositories.article_repo import ArticleRepository
 from news_schemas.article import ArticleIn, SourceType
@@ -311,6 +316,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 async def _seed(session: AsyncSession) -> ArticleRepository:
     repo = ArticleRepository(session)
+    now = datetime.now(UTC)
     await repo.upsert_many(
         [
             ArticleIn(
@@ -320,6 +326,7 @@ async def _seed(session: AsyncSession) -> ArticleRepository:
                 title=f"t{i}",
                 url=f"https://example.com/{i}",
                 content_text=f"content {i}",
+                published_at=now,
             )
             for i in range(3)
         ]

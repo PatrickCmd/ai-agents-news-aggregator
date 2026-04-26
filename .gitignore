@@ -25,3 +25,7 @@ htmlcov/
 
 # OS
 .DS_Store
+
+# Lambda build artifacts
+services/agents/*/dist/
+services/agents/*/.package.Dockerfile

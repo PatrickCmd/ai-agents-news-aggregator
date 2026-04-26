@@ -1998,6 +1998,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from news_observability.sanitizer import sanitize_prompt_input
 from news_schemas.user_profile import UserProfile
 
 
@@ -2027,11 +2028,17 @@ def build_system_prompt(profile: UserProfile, *, email_name: str) -> str:
 
 
 def build_candidate_prompt(candidates: list[dict[str, Any]]) -> str:
+    """Build the candidate-list prompt for the editor agent.
+
+    Sanitises *title*, *summary*, *source_name* per AGENTS.md prompt-injection
+    invariant — these are scraped third-party text. Hard-block patterns raise
+    PromptInjectionError; soft-block patterns are silently redacted.
+    """
     lines = ["Candidates (id | source | title | summary):"]
     for c in candidates:
-        title = (c.get("title") or "").strip()
-        summary = (c.get("summary") or "").strip()
-        source = c.get("source_name") or ""
+        title = sanitize_prompt_input((c.get("title") or "").strip())
+        summary = sanitize_prompt_input((c.get("summary") or "").strip())
+        source = sanitize_prompt_input(c.get("source_name") or "")
         lines.append(f"- {c['id']} | {source} | {title} | {summary}")
     lines.append("")
     lines.append("Score each. Use the article_id field exactly as given.")
@@ -3006,6 +3013,7 @@ Assert `output_type is EmailIntroduction`, `name == "EmailAgent"`, and `agent.mo
 from __future__ import annotations
 
 from agents import Agent
+from news_observability.sanitizer import sanitize_prompt_input
 from news_schemas.agent_io import EmailIntroduction
 
 
@@ -3031,14 +3039,23 @@ def build_agent(*, model: str) -> Agent[EmailIntroduction]:
 
 
 def build_email_prompt(*, email_name: str, top_themes: list[str], ranked: list[dict]) -> str:
+    """Build the user prompt for the email agent.
+
+    Sanitises article *title* and *summary* (scraped third-party text) per the
+    AGENTS.md prompt-injection invariant. Hard-block patterns raise
+    PromptInjectionError; soft-block patterns are silently redacted. Themes
+    and `why_ranked` are LLM-generated upstream so are passed through as-is.
+    """
     lines = [
         f"Reader: {email_name}",
         f"Top themes today: {', '.join(top_themes) or 'n/a'}",
         "Ranked articles (highest first):",
     ]
     for r in ranked:
+        safe_title = sanitize_prompt_input(r["title"])
+        safe_summary = sanitize_prompt_input(r["summary"])
         lines.append(
-            f"- [{r['score']}] {r['title']} — {r['summary']} (why: {r['why_ranked']})"
+            f"- [{r['score']}] {safe_title} — {safe_summary} (why: {r['why_ranked']})"
         )
     lines.append("")
     lines.append("Compose greeting, introduction, highlight, and subject_line.")

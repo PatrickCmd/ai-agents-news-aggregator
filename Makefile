@@ -258,3 +258,90 @@ tag-foundation: ## Re-tag the Foundation release
 tag-ingestion: ## Tag sub-project #1 ingestion
 	git tag -f -a ingestion-v0.2.0 -m "Sub-project #1 Ingestion"
 	@echo "Push with: git push origin ingestion-v0.2.0 --force"
+
+# ---------- agents (#2) ----------
+
+.PHONY: agents-digest agents-digest-sweep agents-editor agents-email agents-preview \
+        digest-deploy-build digest-deploy digest-invoke \
+        editor-deploy-build editor-deploy editor-invoke \
+        email-deploy-build email-deploy email-invoke \
+        agents-logs agents-logs-follow tag-agents
+
+agents-digest:                ## summarise one article (ARTICLE_ID=...) — local CLI
+	@test -n "$(ARTICLE_ID)" || (echo "ARTICLE_ID required" && exit 1)
+	uv run python -m news_digest summarize $(ARTICLE_ID)
+
+agents-digest-sweep:          ## summarise all unsummarised articles  [LOOKBACK=24]
+	uv run python -m news_digest sweep --hours $${LOOKBACK:-24}
+
+agents-editor:                ## rank for user (USER_ID=... LOOKBACK=24)
+	@test -n "$(USER_ID)" || (echo "USER_ID required" && exit 1)
+	uv run python -m news_editor rank $(USER_ID) --hours $${LOOKBACK:-24}
+
+agents-email:                 ## send email for digest (DIGEST_ID=...)
+	@test -n "$(DIGEST_ID)" || (echo "DIGEST_ID required" && exit 1)
+	uv run python -m news_email send $(DIGEST_ID)
+
+agents-preview:               ## preview email HTML (DIGEST_ID=...) → stdout
+	@test -n "$(DIGEST_ID)" || (echo "DIGEST_ID required" && exit 1)
+	uv run python -m news_email preview $(DIGEST_ID)
+
+# ---- per-agent deploy ----
+
+digest-deploy-build:          ## build + s3 upload (digest)
+	uv run python services/agents/digest/deploy.py --mode build
+
+digest-deploy:                ## build + terraform apply (digest)
+	uv run python services/agents/digest/deploy.py --mode deploy --env dev
+
+editor-deploy-build:          ## build + s3 upload (editor)
+	uv run python services/agents/editor/deploy.py --mode build
+
+editor-deploy:                ## build + terraform apply (editor)
+	uv run python services/agents/editor/deploy.py --mode deploy --env dev
+
+email-deploy-build:           ## build + s3 upload (email)
+	uv run python services/agents/email/deploy.py --mode build
+
+email-deploy:                 ## build + terraform apply (email) — requires MAIL_FROM
+	@test -n "$(MAIL_FROM)" || (echo "MAIL_FROM required: MAIL_FROM=hi@yourdomain.com make email-deploy" && exit 1)
+	uv run python services/agents/email/deploy.py --mode deploy --env dev
+
+# ---- live invoke ----
+
+digest-invoke:                ## aws lambda invoke (ARTICLE_ID=...)
+	@test -n "$(ARTICLE_ID)" || (echo "ARTICLE_ID required" && exit 1)
+	@aws lambda invoke --function-name news-digest-dev \
+	  --payload '{"article_id":$(ARTICLE_ID)}' \
+	  --cli-binary-format raw-in-base64-out \
+	  /tmp/digest-out.json --profile aiengineer >/dev/null && jq . /tmp/digest-out.json
+
+editor-invoke:                ## aws lambda invoke (USER_ID=...)
+	@test -n "$(USER_ID)" || (echo "USER_ID required" && exit 1)
+	@aws lambda invoke --function-name news-editor-dev \
+	  --payload '{"user_id":"$(USER_ID)","lookback_hours":24}' \
+	  --cli-binary-format raw-in-base64-out \
+	  /tmp/editor-out.json --profile aiengineer >/dev/null && jq . /tmp/editor-out.json
+
+email-invoke:                 ## aws lambda invoke (DIGEST_ID=...)
+	@test -n "$(DIGEST_ID)" || (echo "DIGEST_ID required" && exit 1)
+	@aws lambda invoke --function-name news-email-dev \
+	  --payload '{"digest_id":$(DIGEST_ID)}' \
+	  --cli-binary-format raw-in-base64-out \
+	  /tmp/email-out.json --profile aiengineer >/dev/null && jq . /tmp/email-out.json
+
+# ---- logs ----
+
+agents-logs:                  ## tail one agent's logs (AGENT=digest|editor|email SINCE=10m)
+	@test -n "$(AGENT)" || (echo "AGENT required: digest|editor|email" && exit 1)
+	aws logs tail /aws/lambda/news-$(AGENT)-dev --since $${SINCE:-10m} --profile aiengineer
+
+agents-logs-follow:           ## follow one agent's logs in real time (AGENT=digest|editor|email)
+	@test -n "$(AGENT)" || (echo "AGENT required: digest|editor|email" && exit 1)
+	aws logs tail /aws/lambda/news-$(AGENT)-dev --follow --profile aiengineer
+
+# ---- tag ----
+
+tag-agents:                   ## tag sub-project #2 release
+	git tag -f -a agents-v0.3.0 -m "Sub-project #2 Agents (digest + editor + email Lambdas)"
+	@echo "Push with: git push origin agents-v0.3.0"

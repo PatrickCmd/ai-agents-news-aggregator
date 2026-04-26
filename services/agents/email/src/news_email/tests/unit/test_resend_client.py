@@ -75,13 +75,13 @@ async def test_send_via_resend_includes_authorization_header() -> None:
 
 @pytest.mark.asyncio
 async def test_send_via_resend_raises_on_401() -> None:
-    from news_email.resend_client import send_via_resend
+    from news_email.resend_client import ResendAuthError, send_via_resend
 
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(401, json={"error": "auth"})
 
     transport = httpx.MockTransport(handler)
-    with pytest.raises(RuntimeError, match="authentication"):
+    with pytest.raises(ResendAuthError):
         await send_via_resend(
             api_key="bad",  # pragma: allowlist secret
             sender_name="x",
@@ -95,13 +95,13 @@ async def test_send_via_resend_raises_on_401() -> None:
 
 @pytest.mark.asyncio
 async def test_send_via_resend_raises_on_422() -> None:
-    from news_email.resend_client import send_via_resend
+    from news_email.resend_client import ResendValidationError, send_via_resend
 
     def handler(request: httpx.Request) -> httpx.Response:
-        return httpx.Response(422, text="missing 'from' field")
+        return httpx.Response(422, json={"message": "missing 'from' field"})
 
     transport = httpx.MockTransport(handler)
-    with pytest.raises(RuntimeError, match="validation"):
+    with pytest.raises(ResendValidationError, match="missing 'from'"):
         await send_via_resend(
             api_key="sk",  # pragma: allowlist secret
             sender_name="x",
@@ -115,13 +115,13 @@ async def test_send_via_resend_raises_on_422() -> None:
 
 @pytest.mark.asyncio
 async def test_send_via_resend_raises_on_429() -> None:
-    from news_email.resend_client import send_via_resend
+    from news_email.resend_client import ResendRateLimitError, send_via_resend
 
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(429, json={"error": "rate"})
 
     transport = httpx.MockTransport(handler)
-    with pytest.raises(RuntimeError, match="rate"):
+    with pytest.raises(ResendRateLimitError):
         await send_via_resend(
             api_key="sk",  # pragma: allowlist secret
             sender_name="x",
@@ -152,3 +152,39 @@ async def test_send_via_resend_raises_on_500() -> None:
             html="<p>h</p>",
             transport=transport,
         )
+
+
+@pytest.mark.asyncio
+async def test_send_via_resend_handles_non_json_422_body() -> None:
+    """422 with non-JSON body → ResendValidationError with placeholder message."""
+    from news_email.resend_client import ResendValidationError, send_via_resend
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(422, text="not json at all")
+
+    transport = httpx.MockTransport(handler)
+    with pytest.raises(ResendValidationError, match="non-json body"):
+        await send_via_resend(
+            api_key="sk",  # pragma: allowlist secret
+            sender_name="x",
+            mail_from="x@x",
+            to="t@example.com",
+            subject="s",
+            html="<p>h</p>",
+            transport=transport,
+        )
+
+
+def test_resend_error_hierarchy() -> None:
+    """All mapped errors are subclasses of ResendError (and RuntimeError)."""
+    from news_email.resend_client import (
+        ResendAuthError,
+        ResendError,
+        ResendRateLimitError,
+        ResendValidationError,
+    )
+
+    assert issubclass(ResendAuthError, ResendError)
+    assert issubclass(ResendValidationError, ResendError)
+    assert issubclass(ResendRateLimitError, ResendError)
+    assert issubclass(ResendError, RuntimeError)

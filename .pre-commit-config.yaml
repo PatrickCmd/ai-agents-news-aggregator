@@ -28,6 +28,7 @@ repos:
           - types-PyYAML
           - fastapi>=0.136.1
           - typer>=0.24.2
+          - httpx>=0.28.1
 
   - repo: https://github.com/Yelp/detect-secrets
     rev: v1.5.0

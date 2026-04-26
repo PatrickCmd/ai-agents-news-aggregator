@@ -1,6 +1,7 @@
 locals {
-  function_name = "news-editor-${terraform.workspace}"
-  ssm_prefix    = "/news-aggregator/${terraform.workspace}"
+  function_name           = "news-editor-${terraform.workspace}"
+  ssm_prefix              = "/news-aggregator/${terraform.workspace}"
+  lambda_artifacts_bucket = "news-aggregator-lambda-artifacts-${data.aws_caller_identity.current.account_id}"
 }
 
 resource "aws_iam_role" "lambda_exec" {
@@ -55,7 +56,7 @@ resource "aws_lambda_function" "this" {
   package_type     = "Zip"
   runtime          = "python3.12"
   handler          = "lambda_handler.handler"
-  s3_bucket        = data.terraform_remote_state.bootstrap.outputs.lambda_artifacts_bucket
+  s3_bucket        = local.lambda_artifacts_bucket
   s3_key           = var.zip_s3_key
   source_code_hash = var.zip_sha256
   timeout          = var.timeout

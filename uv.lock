@@ -11,6 +11,7 @@ members = [
     "ai-agent-news-aggregator",
     "news-config",
     "news-db",
+    "news-digest",
     "news-observability",
     "news-schemas",
     "news-scraper",
@@ -1116,6 +1117,37 @@ requires-dist = [
     { name = "news-schemas", editable = "packages/schemas" },
     { name = "pydantic", specifier = ">=2.13.3" },
     { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.0.36" },
+]
+
+[[package]]
+name = "news-digest"
+version = "0.1.0"
+source = { editable = "services/agents/digest" }
+dependencies = [
+    { name = "boto3" },
+    { name = "loguru" },
+    { name = "news-config" },
+    { name = "news-db" },
+    { name = "news-observability" },
+    { name = "news-schemas" },
+    { name = "openai-agents" },
+    { name = "pydantic" },
+    { name = "pydantic-settings" },
+    { name = "typer" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "boto3", specifier = ">=1.42.95" },
+    { name = "loguru", specifier = ">=0.7.3" },
+    { name = "news-config", editable = "packages/config" },
+    { name = "news-db", editable = "packages/db" },
+    { name = "news-observability", editable = "packages/observability" },
+    { name = "news-schemas", editable = "packages/schemas" },
+    { name = "openai-agents", specifier = ">=0.14.5" },
+    { name = "pydantic", specifier = ">=2.13.3" },
+    { name = "pydantic-settings", specifier = ">=2.5" },
+    { name = "typer", specifier = ">=0.24.2" },
 ]
 
 [[package]]

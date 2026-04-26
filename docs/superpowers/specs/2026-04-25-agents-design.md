@@ -21,7 +21,7 @@ Three OpenAI Agents SDK-driven Lambda functions, each with a single responsibili
 
 All three run as **Lambda zip artifacts in S3** (`package_type = "Zip"`), packaged via `package_docker.py` (uses `public.ecr.aws/lambda/python:3.12` base image for `linux/amd64` manylinux wheels).
 
-All three use **OpenAI Agents SDK with the Chat Completions backend** (`OpenAIChatCompletionsModel`), not the Responses API.
+All three use the **OpenAI Agents SDK with the model passed as a plain string** (`model="gpt-5.4-mini"`). We defer to the SDK default for backend selection (currently the Responses API) — no manual `OpenAIChatCompletionsModel` wrapping. Verified against Context7: the SDK's docs explicitly recommend the string form when you don't need to override the backend.
 
 This spec deliberately leaves orchestration (EventBridge fan-out, retry queues, multi-user scheduling) to sub-project #3. #2 ships standalone Lambda functions with clean per-invocation contracts that #3 will wire together.
 
@@ -103,7 +103,7 @@ flowchart LR
 | Number of Lambdas | 3 (one per agent) | Independent IAM, independent rollouts, clean blast-radius |
 | Runtime | Lambda zip + S3 (`package_type="Zip"`) | Smaller artifact than ECR images, simpler deploy mechanics, no per-Lambda ECR repo |
 | Packaging | `package_docker.py` per agent (mirrors `alex-multi-agent-saas/backend/reporter/package_docker.py`) | Builds in `public.ecr.aws/lambda/python:3.12` for amd64 wheels |
-| LLM SDK | OpenAI Agents SDK with `OpenAIChatCompletionsModel` | Same SDK surface as #1; Chat Completions backend per user direction |
+| LLM SDK | OpenAI Agents SDK; `model=<string>` passthrough | Same SDK surface as #1; defer backend choice (Responses API by default) to the SDK — no manual wrapping |
 | Output validation | `output_type=PydanticModel` (no `HttpUrl`/`EmailStr` per memory `openai_structured_outputs_format`) | Reuse Foundation `validate_structured_output` |
 | Cost tracking | `news_observability.costs.extract_usage` after every `Runner.run` | Foundation invariant; metadata in audit_logs |
 | Per-agent idempotency | Digest skips on `summary IS NOT NULL`; Email skips on existing sent row; Editor not idempotent (each run is a snapshot) | Cheapest correct semantics |
@@ -861,11 +861,11 @@ Cost is queried via `audit_logs.metadata.estimated_cost_usd` aggregations.
 | Editor LLM hallucinates `article_id`s not in candidates | Post-process drops unknown IDs and logs warning. If filtered top-10 empty, mark digest `failed`. |
 | Email "double-send" race (concurrent invocations for same digest) | Idempotency check before LLM call. Not bulletproof against simultaneous invocations; #3 deduplicates via SQS message dedup ID. |
 | Resend bounces / spam-filtered | `provider_message_id` stored. Resend webhook integration deferred to #3. |
-| OpenAI Agents SDK Chat Completions backend output format differs from Responses API | `Runner.run(...).final_output` returns parsed structured output regardless of backend. Asserted with a unit test on every agent. |
+| Future SDK default backend changes (e.g., Responses API output shape evolves) | `Runner.run(...).final_output` returns the parsed structured output regardless of backend. Asserted with a unit test on every agent. |
 | LLM model name stale (gpt-5.4-mini deprecated) | Pricing table returns None for unknown models; agent still runs (cost shows None in audit). Monitor + bump. |
 | Email template rendering inconsistent across mail clients | Out of scope for v1. Plain HTML, no CSS tricks. Iterate when actual users complain. |
 | Multi-user fan-out — too many concurrent Lambda invocations | Default region limit (1000 concurrent) is fine for ≤100 users. #3 throttles via SQS / Step Functions Map state if it grows. |
-| Agents SDK `OpenAIChatCompletionsModel` import path changes between SDK versions | Pin `openai-agents` version; assert `from agents import OpenAIChatCompletionsModel` works at module-import time; verify via Context7 during implementation. |
+| Agents SDK API surface drifts between versions | Pin `openai-agents>=0.14.5`; verify with Context7 at implementation time. We only depend on `Agent`, `Runner.run`, and `trace` — small, stable surface. |
 | `gpt-5.4-mini` rejects schema constraints (e.g., `min_length` on `subject_line`) | Test live early; fall back to looser schema + Python-side validation if needed |
 | Memory `openai_structured_outputs_format` (HttpUrl/EmailStr in agent output rejected) | All four LLM-side schemas use plain `str`. URLs join from DB post-LLM. |
 | `ssm:GetParameters` quota | Cold-start fetch is one batch call per Lambda. Lambda concurrency × cold-start rate is well under SSM quotas. |

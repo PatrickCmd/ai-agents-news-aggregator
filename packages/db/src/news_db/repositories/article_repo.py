@@ -57,6 +57,35 @@ class ArticleRepository:
         row = await self._session.get(Article, article_id)
         return ArticleOut.model_validate(row, from_attributes=True) if row else None
 
+    async def get_unsummarized(self, hours: int, limit: int = 50) -> list[ArticleOut]:
+        """Articles published within *hours* whose `summary IS NULL`.
+
+        Used by the Digest agent's local CLI sweep mode and by #3's fan-out.
+        """
+        cutoff = datetime.now(UTC) - timedelta(hours=hours)
+        stmt = (
+            select(Article)
+            .where(Article.published_at >= cutoff)
+            .where(Article.summary.is_(None))
+            .order_by(Article.published_at.desc())
+            .limit(limit)
+        )
+        rows = (await self._session.execute(stmt)).scalars().all()
+        return [ArticleOut.model_validate(r, from_attributes=True) for r in rows]
+
+    async def get_recent_with_summaries(self, hours: int, limit: int = 100) -> list[ArticleOut]:
+        """Recent articles where `summary IS NOT NULL`. Editor's candidate pool."""
+        cutoff = datetime.now(UTC) - timedelta(hours=hours)
+        stmt = (
+            select(Article)
+            .where(Article.published_at >= cutoff)
+            .where(Article.summary.is_not(None))
+            .order_by(Article.published_at.desc())
+            .limit(limit)
+        )
+        rows = (await self._session.execute(stmt)).scalars().all()
+        return [ArticleOut.model_validate(r, from_attributes=True) for r in rows]
+
     async def get_existing_external_ids(
         self, source_type: SourceType, external_ids: list[str]
     ) -> set[str]:
@@ -73,3 +102,10 @@ class ArticleRepository:
         )
         rows = (await self._session.execute(stmt)).scalars().all()
         return set(rows)
+
+    async def update_summary(self, article_id: int, summary: str) -> None:
+        row = await self._session.get(Article, article_id)
+        if row is None:
+            raise ValueError(f"article not found: {article_id}")
+        row.summary = summary
+        await self._session.commit()

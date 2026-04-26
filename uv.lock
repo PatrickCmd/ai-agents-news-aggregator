@@ -11,6 +11,9 @@ members = [
     "ai-agent-news-aggregator",
     "news-config",
     "news-db",
+    "news-digest",
+    "news-editor",
+    "news-email",
     "news-observability",
     "news-schemas",
     "news-scraper",
@@ -700,6 +703,18 @@ wheels = [
 ]
 
 [[package]]
+name = "jinja2"
+version = "3.1.6"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "markupsafe" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/df/bf/f7da0350254c0ed7c72f3e33cef02e048281fec7ecec5f032d4aac52226b/jinja2-3.1.6.tar.gz", hash = "sha256:0137fb05990d35f1275a587e9aee6d56da821fc83491a0fb838183be43f66d6d", size = 245115, upload-time = "2025-03-05T20:05:02.478Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/62/a1/3d680cbfd5f4b8f15abc1d571870c5fc3e594bb582bc3b64ea099db13e56/jinja2-3.1.6-py3-none-any.whl", hash = "sha256:85ece4451f492d0c13c5dd7c13a64681a86afae63a5f347908daf103ce6d2f67", size = 134899, upload-time = "2025-03-05T20:05:00.369Z" },
+]
+
+[[package]]
 name = "jiter"
 version = "0.14.0"
 source = { registry = "https://pypi.org/simple" }
@@ -1116,6 +1131,103 @@ requires-dist = [
     { name = "news-schemas", editable = "packages/schemas" },
     { name = "pydantic", specifier = ">=2.13.3" },
     { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.0.36" },
+]
+
+[[package]]
+name = "news-digest"
+version = "0.1.0"
+source = { editable = "services/agents/digest" }
+dependencies = [
+    { name = "boto3" },
+    { name = "loguru" },
+    { name = "news-config" },
+    { name = "news-db" },
+    { name = "news-observability" },
+    { name = "news-schemas" },
+    { name = "openai-agents" },
+    { name = "pydantic" },
+    { name = "pydantic-settings" },
+    { name = "typer" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "boto3", specifier = ">=1.42.95" },
+    { name = "loguru", specifier = ">=0.7.3" },
+    { name = "news-config", editable = "packages/config" },
+    { name = "news-db", editable = "packages/db" },
+    { name = "news-observability", editable = "packages/observability" },
+    { name = "news-schemas", editable = "packages/schemas" },
+    { name = "openai-agents", specifier = ">=0.14.5" },
+    { name = "pydantic", specifier = ">=2.13.3" },
+    { name = "pydantic-settings", specifier = ">=2.5" },
+    { name = "typer", specifier = ">=0.24.2" },
+]
+
+[[package]]
+name = "news-editor"
+version = "0.1.0"
+source = { editable = "services/agents/editor" }
+dependencies = [
+    { name = "boto3" },
+    { name = "loguru" },
+    { name = "news-config" },
+    { name = "news-db" },
+    { name = "news-observability" },
+    { name = "news-schemas" },
+    { name = "openai-agents" },
+    { name = "pydantic" },
+    { name = "pydantic-settings" },
+    { name = "typer" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "boto3", specifier = ">=1.42.95" },
+    { name = "loguru", specifier = ">=0.7.3" },
+    { name = "news-config", editable = "packages/config" },
+    { name = "news-db", editable = "packages/db" },
+    { name = "news-observability", editable = "packages/observability" },
+    { name = "news-schemas", editable = "packages/schemas" },
+    { name = "openai-agents", specifier = ">=0.14.5" },
+    { name = "pydantic", specifier = ">=2.13.3" },
+    { name = "pydantic-settings", specifier = ">=2.5" },
+    { name = "typer", specifier = ">=0.24.2" },
+]
+
+[[package]]
+name = "news-email"
+version = "0.1.0"
+source = { editable = "services/agents/email" }
+dependencies = [
+    { name = "boto3" },
+    { name = "httpx" },
+    { name = "jinja2" },
+    { name = "loguru" },
+    { name = "news-config" },
+    { name = "news-db" },
+    { name = "news-observability" },
+    { name = "news-schemas" },
+    { name = "openai-agents" },
+    { name = "pydantic" },
+    { name = "pydantic-settings" },
+    { name = "typer" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "boto3", specifier = ">=1.42.95" },
+    { name = "httpx", specifier = ">=0.28.1" },
+    { name = "jinja2", specifier = ">=3.1" },
+    { name = "loguru", specifier = ">=0.7.3" },
+    { name = "news-config", editable = "packages/config" },
+    { name = "news-db", editable = "packages/db" },
+    { name = "news-observability", editable = "packages/observability" },
+    { name = "news-schemas", editable = "packages/schemas" },
+    { name = "openai-agents", specifier = ">=0.14.5" },
+    { name = "pydantic", specifier = ">=2.13.3" },
+    { name = "pydantic-settings", specifier = ">=2.5" },
+    { name = "typer", specifier = ">=0.24.2" },
 ]
 
 [[package]]

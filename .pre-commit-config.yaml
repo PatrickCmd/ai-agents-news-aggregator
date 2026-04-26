@@ -19,7 +19,7 @@ repos:
     hooks:
       - id: mypy
         args: [--config-file=mypy.ini]
-        files: ^(packages/.*/src/.*\.py$|services/scraper/src/.*\.py$)
+        files: ^(packages/.*/src/.*\.py$|services/scraper/src/.*\.py$|services/agents/digest/src/.*\.py$|services/agents/editor/src/.*\.py$|services/agents/email/src/.*\.py$)
         exclude: /tests/
         additional_dependencies:
           - pydantic>=2.13
@@ -28,6 +28,8 @@ repos:
           - types-PyYAML
           - fastapi>=0.136.1
           - typer>=0.24.2
+          - httpx>=0.28.1
+          - jinja2>=3.1
 
   - repo: https://github.com/Yelp/detect-secrets
     rev: v1.5.0

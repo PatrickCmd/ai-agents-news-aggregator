@@ -1,0 +1,22 @@
+<!doctype html>
+<html>
+  <body style="font-family: sans-serif; max-width: 640px; margin: 0 auto;">
+    <h1>{{ greeting }}</h1>
+    <p>{{ introduction }}</p>
+    <p><strong>{{ highlight }}</strong></p>
+    <hr>
+    <h2>Today's top stories</h2>
+    {% for article in ranked_articles %}
+      <article style="margin-bottom: 1.5em;">
+        <h3 style="margin-bottom: 0.25em;">
+          <a href="{{ article.url }}">{{ article.title }}</a>
+        </h3>
+        <p>{{ article.summary }}</p>
+        <p><em>Why it matters: {{ article.why_ranked }}</em></p>
+        <small>Score: {{ article.score }}/100</small>
+      </article>
+    {% endfor %}
+    <hr>
+    <small>Themes: {{ top_themes | join(", ") }}</small>
+  </body>
+</html>

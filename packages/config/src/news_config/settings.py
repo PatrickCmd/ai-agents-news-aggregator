@@ -60,3 +60,13 @@ class ResendSettings(_Base):
 class AppSettings(_Base):
     env: Literal["dev", "staging", "prod"] = Field(default="dev", alias="ENV")
     log_level: str = Field(default="INFO", alias="LOG_LEVEL")
+
+
+class MailSettings(_Base):
+    mail_from: str = Field(default="", alias="MAIL_FROM")
+    sender_name: str = Field(default="AI News Digest", alias="SENDER_NAME")
+    mail_to_default: str = Field(default="", alias="MAIL_TO_DEFAULT")
+
+    @property
+    def is_configured(self) -> bool:
+        return bool(self.mail_from)

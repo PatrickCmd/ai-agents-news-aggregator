@@ -1,0 +1,2 @@
+zip_s3_key = "digest/<git-sha>.zip"
+zip_sha256 = "<base64-sha256>"

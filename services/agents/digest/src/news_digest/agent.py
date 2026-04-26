@@ -7,6 +7,7 @@ The model is passed as a string; the OpenAI Agents SDK selects the backend
 from __future__ import annotations
 
 from agents import Agent
+from news_observability.sanitizer import sanitize_prompt_input
 from news_schemas.agent_io import DigestSummary
 
 _INSTRUCTIONS = (
@@ -40,10 +41,22 @@ def build_user_prompt(
     content: str,
     max_chars: int,
 ) -> str:
-    truncated = content[:max_chars] if content else ""
+    """Build the user prompt for the digest agent.
+
+    Sanitises *content*, *title*, and *source_name* via
+    `sanitize_prompt_input` before embedding — these are scraped from
+    third-party feeds and could contain prompt-injection payloads.
+    Hard-block patterns (e.g. ``<|im_start|>``) raise PromptInjectionError;
+    soft-block patterns (e.g. "ignore previous instructions") are silently
+    redacted.
+    """
+    safe_title = sanitize_prompt_input(title)
+    safe_source_name = sanitize_prompt_input(source_name)
+    safe_content = sanitize_prompt_input(content) if content else ""
+    truncated = safe_content[:max_chars]
     return (
-        f"Article source: {source_type} — {source_name}\n"
-        f"Original title: {title}\n"
+        f"Article source: {source_type} — {safe_source_name}\n"
+        f"Original title: {safe_title}\n"
         f"URL: {url}\n\n"
         f"CONTENT:\n{truncated}"
     )

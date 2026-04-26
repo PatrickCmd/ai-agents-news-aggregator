@@ -34,7 +34,12 @@ resource "aws_iam_role_policy" "ssm_read" {
           "ssm:GetParameters",
           "ssm:GetParametersByPath",
         ]
-        Resource = "arn:aws:ssm:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:parameter${local.ssm_prefix}/*"
+        # GetParametersByPath needs the *path* resource (no trailing /*).
+        # GetParameter / GetParameters need each child param ARN (with /*).
+        Resource = [
+          "arn:aws:ssm:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:parameter${local.ssm_prefix}",
+          "arn:aws:ssm:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:parameter${local.ssm_prefix}/*",
+        ]
       },
       {
         Effect   = "Allow"

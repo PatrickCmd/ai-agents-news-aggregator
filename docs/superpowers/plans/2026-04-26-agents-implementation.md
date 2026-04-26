@@ -2958,7 +2958,7 @@ from news_schemas.digest import RankedArticle
 _TEMPLATE_DIR = Path(__file__).resolve().parent / "templates"
 _env = Environment(
     loader=FileSystemLoader(str(_TEMPLATE_DIR)),
-    autoescape=select_autoescape(["html"]),
+    autoescape=select_autoescape(["html", "j2"]),
 )
 
 

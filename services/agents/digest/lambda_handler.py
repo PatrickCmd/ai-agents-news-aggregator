@@ -20,16 +20,25 @@ from news_db.repositories.article_repo import ArticleRepository  # noqa: E402
 from news_db.repositories.audit_log_repo import AuditLogRepository  # noqa: E402
 from news_digest import pipeline  # noqa: E402
 from news_digest.settings import DigestSettings  # noqa: E402
-from news_observability.logging import setup_logging  # noqa: E402
+from news_observability.logging import get_logger, setup_logging  # noqa: E402
 from news_observability.tracing import configure_tracing  # noqa: E402
 
+_log = get_logger("lambda_handler")
 setup_logging()
 configure_tracing(enable_langfuse=True)
 
 
 def handler(event: dict[str, Any], context: object) -> dict[str, Any]:
-    """Lambda entry. ``event = {"article_id": int}``."""
-    article_id = int(event["article_id"])
+    """Lambda entry. ``event = {"article_id": int}``.
+
+    Returns a structured failure dict on malformed events instead of raising —
+    raising would trigger SQS DLQ retries on payloads that will never succeed.
+    """
+    try:
+        article_id = int(event["article_id"])
+    except (KeyError, TypeError, ValueError) as exc:
+        _log.error("malformed event {}: {}", event, exc)
+        return {"failed": True, "reason": "malformed_event", "error": str(exc)}
     return asyncio.run(_run(article_id))
 
 

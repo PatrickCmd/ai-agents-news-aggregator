@@ -17,10 +17,17 @@ def load_settings_from_ssm(
 ) -> None:
     """Populate env vars from an SSM parameter tree.
 
-    Idempotent: bails out as soon as one canary env var (SUPABASE_DB_URL) is
+    Idempotent: bails out as soon as the canary env var ``SUPABASE_DB_URL`` is
     set. Pass an explicit ``ssm_client`` to mock during tests.
 
-    Calls ``os.environ.setdefault`` so existing env vars (e.g. local .env) win.
+    Calls ``os.environ.setdefault`` so existing env vars (e.g. local ``.env``) win.
+
+    **Canary contract:** ``SUPABASE_DB_URL`` is treated as the single source of
+    truth — if it's set, *no* SSM lookup happens. This means partial local
+    overrides aren't supported: setting ``SUPABASE_DB_URL`` locally without also
+    setting ``OPENAI_API_KEY`` etc. will short-circuit SSM and surface a
+    confusing ``ValidationError`` deep in agent code. In dev, either source
+    everything from SSM or everything from a local ``.env``.
     """
     if os.environ.get("SUPABASE_DB_URL"):
         return

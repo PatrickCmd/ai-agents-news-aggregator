@@ -56,3 +56,23 @@ def test_handler_invokes_pipeline_with_article_id(
     out = lambda_handler.handler({"article_id": 42}, None)
     assert out["article_id"] == 42
     assert captured["article_id"] == 42
+
+
+def test_handler_returns_failure_dict_on_malformed_event(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Malformed events return a structured failure dict, not raise.
+
+    Raising would cause SQS to DLQ-retry payloads that will never succeed.
+    """
+    monkeypatch.setenv("SUPABASE_DB_URL", "postgresql+asyncpg://x")
+
+    import lambda_handler
+
+    out_missing = lambda_handler.handler({}, None)
+    assert out_missing["failed"] is True
+    assert out_missing["reason"] == "malformed_event"
+
+    out_bad_type = lambda_handler.handler({"article_id": "not-a-number"}, None)
+    assert out_bad_type["failed"] is True
+    assert out_bad_type["reason"] == "malformed_event"

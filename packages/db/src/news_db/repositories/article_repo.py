@@ -73,3 +73,10 @@ class ArticleRepository:
         )
         rows = (await self._session.execute(stmt)).scalars().all()
         return set(rows)
+
+    async def update_summary(self, article_id: int, summary: str) -> None:
+        row = await self._session.get(Article, article_id)
+        if row is None:
+            raise ValueError(f"article not found: {article_id}")
+        row.summary = summary
+        await self._session.commit()

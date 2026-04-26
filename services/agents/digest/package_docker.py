@@ -2,6 +2,11 @@
 
 Uses public.ecr.aws/lambda/python:3.12 as the build image so wheels are amd64
 manylinux. Output: services/agents/digest/dist/news_digest.zip.
+
+Assumes every workspace package follows the src/<pkg>/ layout with an
+__init__.py at src/<pkg>/__init__.py — the Dockerfile cp-copies these
+trees verbatim into /pkg/. If a new workspace package uses a different
+layout, this script will silently produce an unimportable artifact.
 """
 
 from __future__ import annotations
@@ -42,7 +47,7 @@ RUN cp -r packages/schemas/src/news_schemas /pkg/ \\
  && cp services/agents/{agent}/lambda_handler.py /pkg/lambda_handler.py
 
 WORKDIR /pkg
-RUN zip -r9 /tmp/{package}.zip . -x '*.pyc' '__pycache__/*'
+RUN zip -r9 /tmp/{package}.zip . -x '*.pyc' '__pycache__/*' 'tests/*' '*/tests/*' '*/tests/**'
 
 FROM scratch AS export
 COPY --from=build /tmp/{package}.zip /

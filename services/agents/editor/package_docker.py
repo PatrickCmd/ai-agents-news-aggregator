@@ -1,7 +1,7 @@
-"""Build a Lambda zip artifact for the digest agent.
+"""Build a Lambda zip artifact for the editor agent.
 
 Uses public.ecr.aws/lambda/python:3.12 as the build image so wheels are amd64
-manylinux. Output: services/agents/digest/dist/news_digest.zip.
+manylinux. Output: services/agents/editor/dist/news_editor.zip.
 
 Assumes every workspace package follows the src/<pkg>/ layout with an
 __init__.py at src/<pkg>/__init__.py — the Dockerfile cp-copies these

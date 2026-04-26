@@ -43,6 +43,11 @@ def test_handler_invokes_pipeline_with_article_id(
         return _FakeSession()
 
     # Import lambda_handler module after env is patched.
+    sys.modules.pop("lambda_handler", None)  # ensure fresh import
+    # Ensure this agent's root is ahead of any sibling agent's root on sys.path
+    # (sibling test files may have inserted their own root during collection).
+    if sys.path[0] != str(_AGENT_ROOT):
+        sys.path.insert(0, str(_AGENT_ROOT))
     import lambda_handler
 
     monkeypatch.setattr("news_digest.pipeline.summarize_article", _fake_pipeline)
@@ -67,6 +72,11 @@ def test_handler_returns_failure_dict_on_malformed_event(
     """
     monkeypatch.setenv("SUPABASE_DB_URL", "postgresql+asyncpg://x")
 
+    sys.modules.pop("lambda_handler", None)  # ensure fresh import
+    # Ensure this agent's root is ahead of any sibling agent's root on sys.path
+    # (sibling test files may have inserted their own root during collection).
+    if sys.path[0] != str(_AGENT_ROOT):
+        sys.path.insert(0, str(_AGENT_ROOT))
     import lambda_handler
 
     out_missing = lambda_handler.handler({}, None)

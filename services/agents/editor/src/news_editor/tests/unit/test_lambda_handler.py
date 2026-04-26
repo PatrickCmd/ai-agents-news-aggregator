@@ -46,6 +46,11 @@ def test_handler_invokes_pipeline_with_user_id(monkeypatch: pytest.MonkeyPatch) 
     def _fake_get_session() -> _FakeSession:
         return _FakeSession()
 
+    sys.modules.pop("lambda_handler", None)  # ensure fresh import
+    # Ensure this agent's root is ahead of any sibling agent's root on sys.path
+    # (sibling test files may have inserted their own root during collection).
+    if sys.path[0] != str(_AGENT_ROOT):
+        sys.path.insert(0, str(_AGENT_ROOT))
     import lambda_handler
 
     monkeypatch.setattr("news_editor.pipeline.rank_for_user", _fake_pipeline)
@@ -70,6 +75,11 @@ def test_handler_returns_failure_dict_on_malformed_event(
     """Malformed events return structured failure dict, not raise."""
     monkeypatch.setenv("SUPABASE_DB_URL", "postgresql+asyncpg://x")
 
+    sys.modules.pop("lambda_handler", None)  # ensure fresh import
+    # Ensure this agent's root is ahead of any sibling agent's root on sys.path
+    # (sibling test files may have inserted their own root during collection).
+    if sys.path[0] != str(_AGENT_ROOT):
+        sys.path.insert(0, str(_AGENT_ROOT))
     import lambda_handler
 
     out_missing = lambda_handler.handler({}, None)

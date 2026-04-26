@@ -6,10 +6,12 @@ Other 4xx/5xx propagate via ``resp.raise_for_status()`` (httpx.HTTPStatusError).
 
 **Retry policy lives at the call site, not here.** This client returns 4xx
 mappings that should NOT be retried (auth/validation are deterministic
-failures; rate-limit needs caller-side backoff). The pipeline (`pipeline.py`)
-wraps this call with `@retry_transient` from `news_observability.retry`, which
-only retries on transport errors (ConnectionError/TimeoutError/OSError) — those
-escape this function uncaught via the `httpx.AsyncClient` context.
+failures; rate-limit needs caller-side backoff). Retry policy lives at the
+call site (the Lambda handler / CLI in `5.6`), not in the pipeline or this
+client. The handler wraps `send_via_resend` with `retry_transient` from
+`news_observability.retry`, which only retries on transport errors
+(ConnectionError/TimeoutError/OSError) — those escape this function uncaught
+via the `httpx.AsyncClient` context.
 """
 
 from __future__ import annotations

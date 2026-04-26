@@ -433,3 +433,122 @@ async def test_send_digest_handles_validation_failure(
     assert sent_called is False
     assert email_repo.created == []
     assert any(e.output_summary == "validation_failed" for e in audit.entries)
+
+
+@pytest.mark.asyncio
+async def test_send_digest_does_not_catch_programmer_errors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A TypeError from a buggy resend_send must propagate cleanly.
+
+    Should NOT be caught and serialised into email_send.error_message
+    — that would be misleading garbage in the FAILED row.
+    """
+    from news_email import pipeline
+
+    uid = uuid4()
+
+    async def _fake_runner_run(agent, input):  # noqa: A002
+        return _FakeResult(_intro(), _Wrapper(_Usage()))
+
+    monkeypatch.setattr("news_email.pipeline.Runner.run", _fake_runner_run)
+
+    async def _buggy_resend(**kwargs: Any) -> dict[str, Any]:
+        raise TypeError("a programmer bug, not a Resend error")
+
+    email_repo = _EmailRepo()
+    with pytest.raises(TypeError):
+        await pipeline.send_digest_email(
+            digest_id=1,
+            user_repo=_UserRepo(_user(uid)),
+            digest_repo=_DigestRepo(_digest(1, uid)),
+            email_send_repo=email_repo,
+            audit_writer=_AuditRepo().insert,
+            resend_send=_buggy_resend,
+            model="gpt-5.4-mini",
+            sender_name="x",
+            mail_from="x@x",
+            mail_to_default="",
+        )
+    # mark_failed must NOT be called — this isn't a Resend failure
+    assert email_repo.marked_failed == []
+
+
+@pytest.mark.asyncio
+async def test_send_digest_hard_fails_when_resend_returns_no_id(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Resend returning 200 but no id → ResendError, mark_failed, raise."""
+    from news_email import pipeline
+    from news_email.resend_client import ResendError
+
+    uid = uuid4()
+
+    async def _fake_runner_run(agent, input):  # noqa: A002
+        return _FakeResult(_intro(), _Wrapper(_Usage()))
+
+    monkeypatch.setattr("news_email.pipeline.Runner.run", _fake_runner_run)
+
+    async def _no_id_resend(**kwargs: Any) -> dict[str, Any]:
+        return {}  # no "id" key
+
+    email_repo = _EmailRepo()
+    with pytest.raises(ResendError, match="no id"):
+        await pipeline.send_digest_email(
+            digest_id=1,
+            user_repo=_UserRepo(_user(uid)),
+            digest_repo=_DigestRepo(_digest(1, uid)),
+            email_send_repo=email_repo,
+            audit_writer=_AuditRepo().insert,
+            resend_send=_no_id_resend,
+            model="gpt-5.4-mini",
+            sender_name="x",
+            mail_from="x@x",
+            mail_to_default="",
+        )
+    # mark_failed should be called
+    assert email_repo.marked_failed
+    assert "no id" in email_repo.marked_failed[0][1]
+    # mark_sent should NOT be called
+    assert email_repo.marked_sent == []
+
+
+@pytest.mark.asyncio
+async def test_send_digest_marks_failed_on_httpx_request_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Transport errors (httpx.RequestError subclasses) get caught + mark_failed + re-raise.
+
+    Note: real callers will wrap with `retry_transient` upstream, but the
+    pipeline must still surface a final failure cleanly if retries exhaust.
+    """
+    import httpx
+
+    from news_email import pipeline
+
+    uid = uuid4()
+
+    async def _fake_runner_run(agent, input):  # noqa: A002
+        return _FakeResult(_intro(), _Wrapper(_Usage()))
+
+    monkeypatch.setattr("news_email.pipeline.Runner.run", _fake_runner_run)
+
+    async def _timeout_resend(**kwargs: Any) -> dict[str, Any]:
+        raise httpx.ReadTimeout("connection timed out")
+
+    email_repo = _EmailRepo()
+    with pytest.raises(httpx.ReadTimeout):
+        await pipeline.send_digest_email(
+            digest_id=1,
+            user_repo=_UserRepo(_user(uid)),
+            digest_repo=_DigestRepo(_digest(1, uid)),
+            email_send_repo=email_repo,
+            audit_writer=_AuditRepo().insert,
+            resend_send=_timeout_resend,
+            model="gpt-5.4-mini",
+            sender_name="x",
+            mail_from="x@x",
+            mail_to_default="",
+        )
+    assert email_repo.marked_failed
+    assert "timed out" in email_repo.marked_failed[0][1]

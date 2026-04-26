@@ -7,6 +7,7 @@ from time import perf_counter
 from typing import Any, Protocol
 from uuid import UUID
 
+import httpx
 from agents import Runner, trace
 from news_observability.audit import AuditLogger
 from news_observability.costs import extract_usage
@@ -20,10 +21,26 @@ from news_schemas.user_profile import UserOut
 
 from news_email.agent import build_agent, build_email_prompt
 from news_email.render import render_digest_html
+from news_email.resend_client import ResendError
 
 _log = get_logger("email_pipeline")
 AuditWriter = Callable[[AuditLogIn], Awaitable[None]]
-ResendSend = Callable[..., Awaitable[dict[str, Any]]]
+
+
+class ResendSend(Protocol):
+    """Callable that POSTs to Resend. The handler/CLI in 5.6 wraps this with
+    ``retry_transient`` so transport errors (ConnectionError/TimeoutError) get
+    retried; the pipeline sees only post-retry exceptions."""
+
+    async def __call__(
+        self,
+        *,
+        to: str,
+        subject: str,
+        html: str,
+        sender_name: str,
+        mail_from: str,
+    ) -> dict[str, Any]: ...
 
 
 class _UserRepo(Protocol):
@@ -59,6 +76,10 @@ async def send_digest_email(
     preview_only: bool = False,
 ) -> dict[str, Any]:
     """Compose + send the digest email. Idempotent.
+
+    Retry policy lives at the call site (handler/CLI), NOT here. Transport
+    errors are wrapped with `retry_transient` upstream so the pipeline sees
+    either post-retry success or a final failure to record.
 
     Behaviour paths:
         1. digest not found → return ``{"error": "digest not found", ...}``.
@@ -167,11 +188,33 @@ async def send_digest_email(
             sender_name=sender_name,
             mail_from=mail_from,
         )
-    except Exception as exc:
-        await email_send_repo.mark_failed(send_row.id, error=str(exc))
-        raise
+    except (ResendError, httpx.HTTPError) as send_exc:
+        try:
+            await email_send_repo.mark_failed(send_row.id, error=str(send_exc))
+        except Exception as db_exc:
+            _log.error(
+                "email: resend failed AND mark_failed failed for send_id={} "
+                "(send_err={!r}, db_err={!r}); row stays PENDING",
+                send_row.id,
+                send_exc,
+                db_exc,
+            )
+        raise send_exc
 
-    provider_id = str(resp.get("id", ""))
+    provider_id = resp.get("id")
+    if not isinstance(provider_id, str) or not provider_id:
+        # Resend returned 200 but no usable id → treat as a Resend protocol error.
+        # We can't correlate with their dashboard or webhooks without an id.
+        bad = ResendError(f"Resend returned no id: {resp!r}")
+        try:
+            await email_send_repo.mark_failed(send_row.id, error=str(bad))
+        except Exception as db_exc:
+            _log.error(
+                "email: bad resend id AND mark_failed failed for send_id={}: {!r}",
+                send_row.id,
+                db_exc,
+            )
+        raise bad
     await email_send_repo.mark_sent(send_row.id, provider_message_id=provider_id)
     await digest_repo.update_status(digest_id, DigestStatus.EMAILED)
 

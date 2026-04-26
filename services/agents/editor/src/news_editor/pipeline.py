@@ -107,7 +107,7 @@ async def rank_for_user(
                 ranked_articles=[],
                 article_count=len(candidates),
                 status=DigestStatus.FAILED,
-                error_message="validation",
+                error_message=f"validation: {exc}",
             )
         )
         await audit.log_decision(
@@ -144,6 +144,55 @@ async def rank_for_user(
         )
     top = sorted(valid, key=lambda r: r.score, reverse=True)[:top_n]
 
+    if not top:
+        # All rankings dropped (LLM hallucinated every ID, or returned an empty
+        # list). Treat as a business failure analogous to validation failure.
+        _log.warning(
+            "editor: all rankings dropped/invalid for user {} ({} candidates, "
+            "{} rankings, {} valid)",
+            user_id,
+            len(candidates),
+            len(decision.rankings),
+            len(valid),
+        )
+        digest = await digest_repo.create(
+            DigestIn(
+                user_id=user_id,
+                period_start=period_start,
+                period_end=period_end,
+                ranked_articles=[],
+                article_count=len(candidates),
+                status=DigestStatus.FAILED,
+                error_message="no valid rankings",
+            )
+        )
+        await audit.log_decision(
+            agent_name=AgentName.EDITOR,
+            user_id=user_id,
+            decision_type=DecisionType.RANK,
+            input_text=f"user {user_id}: ranking {len(candidates)} candidates",
+            output_text="no_valid_rankings",
+            metadata={
+                "user_id": str(user_id),
+                "candidate_count": len(candidates),
+                "ranking_count": len(decision.rankings),
+                "valid_ranking_count": len(valid),
+                "top_themes": decision.top_themes,
+                "model": usage.model,
+                "input_tokens": usage.input_tokens,
+                "output_tokens": usage.output_tokens,
+                "total_tokens": usage.total_tokens,
+                "requests": usage.requests,
+                "estimated_cost_usd": usage.estimated_cost_usd,
+                "duration_ms": elapsed_ms,
+            },
+        )
+        return {
+            "digest_id": digest.id,
+            "failed": True,
+            "reason": "no_valid_rankings",
+        }
+
     ranked = [
         RankedArticle(
             article_id=r.article_id,
@@ -156,7 +205,6 @@ async def rank_for_user(
         for r in top
     ]
 
-    digest_status = DigestStatus.GENERATED if ranked else DigestStatus.FAILED
     digest = await digest_repo.create(
         DigestIn(
             user_id=user_id,
@@ -165,8 +213,7 @@ async def rank_for_user(
             ranked_articles=ranked,
             top_themes=decision.top_themes,
             article_count=len(candidates),
-            status=digest_status,
-            error_message=None if ranked else "no valid rankings",
+            status=DigestStatus.GENERATED,
         )
     )
 
@@ -175,13 +222,11 @@ async def rank_for_user(
         user_id=user_id,
         decision_type=DecisionType.RANK,
         input_text=f"user {user_id}: ranking {len(candidates)} candidates",
-        output_text=(
-            f"top pick art {top[0].article_id if top else None}; themes {decision.top_themes}"
-        ),
+        output_text=(f"top pick art {top[0].article_id}; themes {decision.top_themes}"),
         metadata={
             "user_id": str(user_id),
             "candidate_count": len(candidates),
-            "top_pick_id": top[0].article_id if top else None,
+            "top_pick_id": top[0].article_id,
             "top_themes": decision.top_themes,
             "model": usage.model,
             "input_tokens": usage.input_tokens,
@@ -200,4 +245,8 @@ async def rank_for_user(
         digest.id,
     )
 
-    return {"digest_id": digest.id, "status": digest_status.value, "ranked": len(ranked)}
+    return {
+        "digest_id": digest.id,
+        "status": DigestStatus.GENERATED.value,
+        "ranked": len(ranked),
+    }

@@ -223,7 +223,7 @@ async def test_rank_for_user_handles_validation_failure(
     """Spec §9: structured-output validation failure is a business failure.
 
     Audit row written with output_summary='validation_failed';
-    digest row written with status='failed', error_message='validation';
+    digest row written with status='failed', error_message='validation: ...';
     return dict has failed=True, no exception raised.
     """
     from news_editor import pipeline
@@ -259,5 +259,56 @@ async def test_rank_for_user_handles_validation_failure(
     assert out["failed"] is True
     assert out["reason"] == "validation"
     assert digests.created[0].status is DigestStatus.FAILED
-    assert digests.created[0].error_message == "validation"
+    assert digests.created[0].error_message is not None
+    assert digests.created[0].error_message.startswith("validation: ")
     assert any(e.output_summary == "validation_failed" for e in audit.entries)
+
+
+@pytest.mark.asyncio
+async def test_rank_for_user_handles_all_hallucinated_rankings(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """When every ranking is for a hallucinated article_id, return failed dict.
+
+    Symmetric with the validation-failure path: digest row failed,
+    audit row marked, return dict has failed=True + reason.
+    """
+    from news_editor import pipeline
+
+    uid = uuid4()
+    candidates = [_article(1), _article(2)]
+
+    # Both rankings reference IDs that aren't in the candidate set.
+    canned = EditorDecision(
+        rankings=[
+            ArticleRanking(article_id=998, score=80, why_ranked="ten chars long"),
+            ArticleRanking(article_id=999, score=50, why_ranked="ten chars long"),
+        ],
+        top_themes=["t"],
+        overall_summary="",
+    )
+
+    async def _fake_runner_run(agent, input):  # noqa: A002
+        return _FakeResult(canned, _Wrapper(_Usage()))
+
+    monkeypatch.setattr("news_editor.pipeline.Runner.run", _fake_runner_run)
+
+    digests = _CapturingDigestRepo()
+    audit = _AuditRepo()
+    out = await pipeline.rank_for_user(
+        user_id=uid,
+        article_repo=_ArticleRepo(candidates),
+        user_repo=_UserRepo(_user(uid)),
+        digest_repo=digests,
+        audit_writer=audit.insert,
+        model="gpt-5.4-mini",
+        lookback_hours=24,
+        limit=100,
+        top_n=10,
+    )
+    assert out["failed"] is True
+    assert out["reason"] == "no_valid_rankings"
+    assert digests.created[0].status is DigestStatus.FAILED
+    assert digests.created[0].error_message == "no valid rankings"
+    assert digests.created[0].ranked_articles == []
+    assert any(e.output_summary == "no_valid_rankings" for e in audit.entries)

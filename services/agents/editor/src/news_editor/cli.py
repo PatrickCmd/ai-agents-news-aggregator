@@ -20,6 +20,16 @@ from news_editor.settings import EditorSettings
 app = typer.Typer(no_args_is_help=True, help="Editor agent CLI")
 
 
+@app.callback()
+def _root() -> None:
+    """Editor agent CLI.
+
+    Forces Typer to keep subcommand routing even when only one command is
+    registered (otherwise `python -m news_editor rank <uuid>` would parse
+    `rank` as the USER_ID positional).
+    """
+
+
 @app.command()
 def rank(user_id: UUID, hours: int = 24) -> None:
     """Rank recent articles for a user; writes a `digests` row."""

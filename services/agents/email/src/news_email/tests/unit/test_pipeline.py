@@ -552,3 +552,71 @@ async def test_send_digest_marks_failed_on_httpx_request_error(
         )
     assert email_repo.marked_failed
     assert "timed out" in email_repo.marked_failed[0][1]
+
+
+@pytest.mark.parametrize(
+    "status",
+    [DigestStatus.FAILED, DigestStatus.PENDING, DigestStatus.EMAILED],
+    ids=["failed", "pending", "emailed"],
+)
+@pytest.mark.asyncio
+async def test_send_digest_skips_when_digest_not_generated(
+    monkeypatch: pytest.MonkeyPatch,
+    status: DigestStatus,
+) -> None:
+    """Refuse to send if digest.status != GENERATED (no LLM, no Resend)."""
+    from news_email import pipeline
+
+    uid = uuid4()
+    digest = _digest(1, uid)
+    # Force a non-GENERATED status (FAILED is the editor's "no candidates"
+    # outcome; PENDING is a rare crash state; EMAILED is already-sent).
+    digest = DigestOut(
+        id=digest.id,
+        user_id=digest.user_id,
+        period_start=digest.period_start,
+        period_end=digest.period_end,
+        intro=digest.intro,
+        ranked_articles=digest.ranked_articles,
+        top_themes=digest.top_themes,
+        article_count=digest.article_count,
+        status=status,
+        error_message="test",
+        generated_at=digest.generated_at,
+    )
+
+    runner_called = False
+
+    async def _fake_runner_run(agent, input):  # noqa: A002
+        nonlocal runner_called
+        runner_called = True
+        return _FakeResult(_intro(), _Wrapper(_Usage()))
+
+    monkeypatch.setattr("news_email.pipeline.Runner.run", _fake_runner_run)
+
+    sent_called = False
+
+    async def _fake_resend(**kwargs: Any) -> dict[str, Any]:
+        nonlocal sent_called
+        sent_called = True
+        return {"id": "x"}
+
+    email_repo = _EmailRepo()
+    out = await pipeline.send_digest_email(
+        digest_id=1,
+        user_repo=_UserRepo(_user(uid)),
+        digest_repo=_DigestRepo(digest),
+        email_send_repo=email_repo,
+        audit_writer=_AuditRepo().insert,
+        resend_send=_fake_resend,
+        model="gpt-5.4-mini",
+        sender_name="x",
+        mail_from="x@x",
+        mail_to_default="",
+    )
+    assert out["error"] == "digest not sendable"
+    assert out["status"] == status.value
+    assert out["digest_id"] == 1
+    assert runner_called is False  # no LLM
+    assert sent_called is False  # no Resend
+    assert email_repo.created == []  # no DB write

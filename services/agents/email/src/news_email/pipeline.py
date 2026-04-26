@@ -84,11 +84,13 @@ async def send_digest_email(
     Behaviour paths:
         1. digest not found → return ``{"error": "digest not found", ...}``.
         2. user not found → return ``{"error": "user not found", ...}``.
-        3. existing SENT email_send row → skip LLM + Resend, return existing id.
-        4. preview_only=True → render and return HTML, no DB write, no send.
-        5. validation failure → audit row, return ``{"failed": True, "reason": "validation"}``.
-        6. happy path → compose, send, mark sent, flip digest status, audit.
-        7. Resend error → mark email_send failed, re-raise (caller decides retry).
+        3. digest not sendable (status != GENERATED) → return
+           ``{"error": "digest not sendable", ...}``. No LLM, no Resend, no DB.
+        4. existing SENT email_send row → skip LLM + Resend, return existing id.
+        5. preview_only=True → render and return HTML, no DB write, no send.
+        6. validation failure → audit row, return ``{"failed": True, "reason": "validation"}``.
+        7. happy path → compose, send, mark sent, flip digest status, audit.
+        8. Resend error → mark email_send failed, re-raise (caller decides retry).
     """
     digest = await digest_repo.get_by_id(digest_id)
     if digest is None:
@@ -99,6 +101,21 @@ async def send_digest_email(
     if user is None:
         _log.info("email skip: user {} not found for digest {}", digest.user_id, digest_id)
         return {"error": "user not found", "digest_id": digest_id}
+
+    # Only sendable if the editor produced a real digest. FAILED/PENDING
+    # digests (e.g. "no candidates" or "no valid rankings" from editor 4.4)
+    # would result in an empty email — refuse instead.
+    if digest.status is not DigestStatus.GENERATED:
+        _log.info(
+            "email skip: digest {} status is {} (not sendable)",
+            digest_id,
+            digest.status.value,
+        )
+        return {
+            "error": "digest not sendable",
+            "status": digest.status.value,
+            "digest_id": digest_id,
+        }
 
     if not preview_only:
         existing = await email_send_repo.get_sent_for_digest(digest_id)

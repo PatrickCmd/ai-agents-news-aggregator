@@ -147,3 +147,101 @@ make scraper-deploy           # build + push image + create service
 
 If the sub-project needs additional AWS services beyond the policies in
 `setup-iam.sh`, update the policy list in that script and re-run it.
+
+## Sub-project #2 — agents (digest / editor / email Lambdas)
+
+Three independent AWS Lambda functions, each shipped as a zip artifact in S3
+and managed by its own Terraform module under `infra/{digest,editor,email}/`.
+
+### One-time bootstrap extension
+
+Phase 2 of sub-project #2 added an `aws_s3_bucket.lambda_artifacts` resource
+to the bootstrap module. If you re-init bootstrap state on a fresh machine,
+ensure the bucket already exists (or re-apply bootstrap):
+
+```sh
+cd infra/bootstrap && terraform apply
+```
+
+The bucket is `news-aggregator-lambda-artifacts-<account_id>`.
+
+### Per-agent Terraform init
+
+Each module reads the artifact bucket name inline (computed from
+`data.aws_caller_identity.current.account_id`) — no remote-state coupling.
+Init each module once with the right state-key:
+
+```sh
+ACCT=$(aws sts get-caller-identity --profile aiengineer --query Account --output text)
+for agent in digest editor email; do
+  cd infra/$agent
+  terraform init \
+    -backend-config="bucket=news-aggregator-tf-state-$ACCT" \
+    -backend-config="key=$agent/terraform.tfstate" \
+    -backend-config="region=us-east-1" \
+    -backend-config="profile=aiengineer"
+  cd -
+done
+```
+
+### Deploy
+
+`deploy.py` per agent builds the zip, uploads to S3, and runs `terraform
+apply`. Email requires `MAIL_FROM` (Resend-verified sender domain):
+
+```sh
+make digest-deploy
+make editor-deploy
+MAIL_FROM=hi@yourdomain.com make email-deploy
+```
+
+Each agent's first deploy creates 5 resources: IAM role + 2 policy
+attachments + log group + Lambda function.
+
+### Invoke + logs
+
+```sh
+make digest-invoke ARTICLE_ID=42
+make editor-invoke USER_ID=<uuid>
+make email-invoke DIGEST_ID=17
+
+make agents-logs AGENT=digest SINCE=10m
+make agents-logs-follow AGENT=email
+```
+
+### Roll back
+
+To redeploy a previous version, `terraform apply` with the previous zip's
+S3 key + sha256 (look them up in `s3://news-aggregator-lambda-artifacts-*/<agent>/`):
+
+```sh
+cd infra/digest
+terraform apply -var=zip_s3_key=digest/<previous-sha>.zip -var=zip_sha256=<previous-base64-sha256>
+```
+
+To destroy a single agent (preserves the artifact bucket):
+
+```sh
+cd infra/<agent>
+terraform destroy -var=zip_s3_key=anything -var=zip_sha256=anything
+```
+
+(Required vars must be set — values don't matter on destroy.)
+
+### IAM scope
+
+Each Lambda's role has read access to `arn:aws:ssm:...:parameter/news-aggregator/<env>/*`
+(SSM SecureStrings populated by sub-project #1) plus AWSLambdaBasicExecutionRole
+for CloudWatch logs. No cross-account permissions, no shared state with the
+scraper service.
+
+### Failure modes
+
+- **Lambda zip > 50 MB** — direct upload limit. Currently ~39 MB per agent;
+  monitor when adding deps.
+- **`MAIL_FROM` rejected by Resend** — domain not verified. Add it at
+  https://resend.com/domains.
+- **`make agents-logs SINCE=...` shows no entries** — Lambda hasn't been
+  invoked yet, or the function name is wrong (must match `news-<agent>-dev`).
+- **Cold-start SSM read fails** — SSM params missing for the env. Re-run
+  `make secrets-sync ENV=dev` (from sub-project #1).

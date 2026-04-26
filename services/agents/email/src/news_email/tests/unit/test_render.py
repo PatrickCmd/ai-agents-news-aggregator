@@ -74,3 +74,47 @@ def test_render_escapes_html_in_user_content() -> None:
     assert "&lt;script&gt;" in html
     assert "<img src=x onerror=alert(1)>" not in html
     assert "&lt;img" in html
+
+
+def test_render_escapes_ampersand_in_url() -> None:
+    """Attribute-context autoescape: `&` in href becomes `&amp;`."""
+    from news_email.render import render_digest_html
+
+    intro = _intro()
+    ranked = [
+        RankedArticle(
+            article_id=1,
+            score=80,
+            title="T",
+            url="https://example.com/?q=foo&bar=baz",
+            summary="s",
+            why_ranked="match",
+        )
+    ]
+    html = render_digest_html(intro, ranked, top_themes=[])
+    # The literal `&` in the URL must be escaped to `&amp;` in attribute context
+    assert "&amp;bar=baz" in html
+    # Sanity: the unescaped form must NOT appear (autoescape is active)
+    assert "?q=foo&bar=baz" not in html
+
+
+def test_render_rejects_non_http_url() -> None:
+    """Defense-in-depth: javascript: URLs are rejected at render time."""
+    import pytest
+    from pydantic_core import Url
+
+    from news_email.render import render_digest_html
+
+    intro = _intro()
+    # Use model_construct to bypass HttpUrl validation (simulates the threat
+    # model: a future schema relaxation, e.g. `url: str` instead of HttpUrl).
+    bad = RankedArticle.model_construct(
+        article_id=1,
+        score=80,
+        title="T",
+        url=Url("javascript:alert(1)"),  # type: ignore[arg-type]
+        summary="s",
+        why_ranked="match",
+    )
+    with pytest.raises(ValueError, match="non-http"):
+        render_digest_html(intro, [bad], top_themes=[])

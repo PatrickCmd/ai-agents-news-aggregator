@@ -24,7 +24,7 @@ class _Wrapper:
 
 @dataclass
 class _FakeResult:
-    final_output: DigestSummary
+    final_output: object
     context_wrapper: _Wrapper
 
 
@@ -176,3 +176,40 @@ async def test_summarize_returns_error_when_article_missing(
     )
     assert out["error"] == "not found"
     assert audit.entries == []
+
+
+@pytest.mark.asyncio
+async def test_summarize_audits_and_returns_failed_on_validation_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Spec §9: structured-output validation failure is a business failure.
+
+    Audit row written with output_summary='validation_failed'; return dict
+    has `failed=True, reason='validation'`; no DB write; no exception raised.
+    """
+    from news_digest import pipeline as p
+
+    repo = _CapturingArticleRepo(_article(summary=None))
+    audit = _CapturingAuditRepo()
+
+    # final_output is garbage that fails DigestSummary validation
+    # (summary too short, key_takeaways too long).
+    bad_output = {"summary": "short", "key_takeaways": ["x"] * 99}
+
+    async def _fake_runner_run(agent, input):  # noqa: A002
+        return _FakeResult(bad_output, _Wrapper(_Usage()))
+
+    monkeypatch.setattr("news_digest.pipeline.Runner.run", _fake_runner_run)
+
+    out = await p.summarize_article(
+        article_id=42,
+        article_repo=repo,
+        audit_writer=audit.insert,
+        model="gpt-5.4-mini",
+        max_content_chars=8000,
+    )
+    assert out["failed"] is True
+    assert out["reason"] == "validation"
+    assert repo.updates == []  # no DB write
+    assert len(audit.entries) == 1
+    assert audit.entries[0].output_summary == "validation_failed"

@@ -66,3 +66,7 @@ class MailSettings(_Base):
     mail_from: str = Field(default="", alias="MAIL_FROM")
     sender_name: str = Field(default="AI News Digest", alias="SENDER_NAME")
     mail_to_default: str = Field(default="", alias="MAIL_TO_DEFAULT")
+
+    @property
+    def is_configured(self) -> bool:
+        return bool(self.mail_from)

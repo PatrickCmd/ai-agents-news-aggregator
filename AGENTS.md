@@ -14,7 +14,7 @@ The system is broken into seven independent sub-projects. Each has its own brain
 |---|---|---|
 | **0** | Foundation — monorepo skeleton, shared packages (`db`, `schemas`, `config`, `observability`), Supabase schema, dev/test workflow, CI | shipped — tag `foundation-v0.1.1` |
 | **1** | Ingestion pipeline (ECS Express service): RSS + YouTube + Playwright web-search, plus per-sub-project Terraform under `infra/scraper/` | shipped — tag `ingestion-v0.2.1` |
-| **2** | Digest + Editor + Email agents (Lambda chain) | **current** |
+| **2** | Digest + Editor + Email agents (Lambda chain) — Lambda zips on S3, per-agent Terraform under `infra/{digest,editor,email}/` | shipped — tag `agents-v0.3.0` |
 | 3 | Scheduler + orchestration (EventBridge → ECS → Lambda) | not started |
 | 4 | API + Auth (FastAPI on Lambda, Clerk JWT) | not started |
 | 5 | Frontend (Next.js + Clerk + S3/CloudFront) | not started |
@@ -189,6 +189,44 @@ make scraper-import-secrets     # fix ParameterAlreadyExists during apply
 
 See `infra/README.md` for the full lifecycle, recovery scenarios, and AWS-side gotchas.
 
+### Sub-project #2 (Agents) — operational commands
+
+Three independent Lambda functions: `news-digest-dev`, `news-editor-dev`,
+`news-email-dev`. Each is a zip artifact in S3, deployed via per-agent
+Terraform modules under `infra/{digest,editor,email}/`.
+
+```sh
+# Local CLI (no AWS)
+make agents-digest ARTICLE_ID=42                  # summarise one article
+make agents-digest-sweep LOOKBACK=24              # sweep all unsummarised
+make agents-editor USER_ID=<uuid> LOOKBACK=24     # rank for user
+make agents-email DIGEST_ID=17                    # send via Resend
+make agents-preview DIGEST_ID=17                  # render HTML to stdout (no send)
+
+# AWS deploy lifecycle
+make digest-deploy                                # build + S3 upload + terraform apply
+make editor-deploy
+MAIL_FROM=hi@yourdomain.com make email-deploy     # MAIL_FROM required (Resend-verified)
+
+# Live invoke
+make digest-invoke ARTICLE_ID=42
+make editor-invoke USER_ID=<uuid>
+make email-invoke DIGEST_ID=17
+
+# Logs
+make agents-logs AGENT=digest SINCE=10m
+make agents-logs-follow AGENT=email
+```
+
+Lambdas read SSM SecureStrings at cold-start via
+`news_config.lambda_settings.load_settings_from_ssm` — same SSM tree as #1
+(`/news-aggregator/<env>/*`). The bootstrap module's `lambda_artifacts` S3
+bucket holds the zips; each per-agent Terraform module reads the bucket
+name inline (no `terraform_remote_state` indirection).
+
+See `infra/README.md` § "Sub-project #2 — agents" for full lifecycle,
+rollback, and IAM scope details.
+
 ## What NOT to do
 
 Anti-patterns that will break invariants in this repo. Reject these on review:
@@ -210,6 +248,9 @@ Anti-patterns that will break invariants in this repo. Reject these on review:
 - Do not commit `.env`. It's in `.gitignore` for a reason.
 - Do not bypass `scripts/reset_db.py` guards.
 - Do not run `terraform apply -replace=...` on the ECS Express service unless you've waited ~1h for the previous INACTIVE record to clear, OR rename the service. AWS retains INACTIVE service names for ~1h.
+- Do not name the Lambda handler module anything other than `lambda_handler.py` at the agent's package root. AWS Lambda's handler config requires `handler = "lambda_handler.handler"`, and unit tests for these handlers MUST `sys.modules.pop("lambda_handler", None)` before each `import lambda_handler` to avoid cross-agent collisions in pytest's shared interpreter.
+- Do not wrap the Resend HTTP client with `@retry_transient` inside `news_email.pipeline`. The retry decorator must wrap at the call site (Lambda handler / CLI) — wrapping inside the pipeline would retry the 4xx error mappings (auth/validation/rate-limit) which are deterministic failures.
+- Do not use `data.terraform_remote_state.bootstrap` in the per-agent Lambda Terraform modules. The bootstrap module uses local state (chicken-and-egg). Compute the artifacts bucket name inline: `"news-aggregator-lambda-artifacts-${data.aws_caller_identity.current.account_id}"`.
 
 ## Security
 

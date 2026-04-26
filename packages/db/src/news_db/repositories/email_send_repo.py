@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 
 from news_schemas.email_send import EmailSendIn, EmailSendOut, EmailSendStatus
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from news_db.models.email_send import EmailSend
@@ -49,3 +50,17 @@ class EmailSendRepository:
         await self._session.commit()
         await self._session.refresh(row)
         return EmailSendOut.model_validate(row, from_attributes=True)
+
+    async def get_sent_for_digest(self, digest_id: int) -> EmailSendOut | None:
+        """Return the SENT row for *digest_id*, or None.
+
+        Used by the Email agent's idempotency guard before any LLM/Resend call.
+        """
+        stmt = (
+            select(EmailSend)
+            .where(EmailSend.digest_id == digest_id)
+            .where(EmailSend.status == EmailSendStatus.SENT.value)
+            .limit(1)
+        )
+        row = (await self._session.execute(stmt)).scalar_one_or_none()
+        return EmailSendOut.model_validate(row, from_attributes=True) if row else None

@@ -10,6 +10,7 @@
 [![Ingestion](https://img.shields.io/badge/sub--project%20%231-ingestion--v0.2.1-success)](https://github.com/PatrickCmd/ai-agents-news-aggregator/releases/tag/ingestion-v0.2.1)
 [![Agents](https://img.shields.io/badge/sub--project%20%232-agents--v0.3.0-success)](https://github.com/PatrickCmd/ai-agents-news-aggregator/releases/tag/agents-v0.3.0)
 [![Scheduler](https://img.shields.io/badge/sub--project%20%233-scheduler--v0.4.0-success)](https://github.com/PatrickCmd/ai-agents-news-aggregator/releases/tag/scheduler-v0.4.0)
+[![API](https://img.shields.io/badge/sub--project%20%234-api--v0.5.0-success)](https://github.com/PatrickCmd/ai-agents-news-aggregator/releases/tag/api-v0.5.0)
 [![Python](https://img.shields.io/badge/python-3.12-blue)](.python-version)
 [![Tests](https://img.shields.io/badge/tests-passing-success)](#testing)
 
@@ -84,7 +85,7 @@ working software on its own:
 | **1** | **Ingestion** | `services/scraper/` — FastAPI on **ECS Express**: YouTube RSS + transcripts, blog RSS via [rss-mcp](rss-mcp/), live web search via Playwright MCP + OpenAI Agents SDK | ✅ shipped |
 | **2** | **Agents** | Three Lambdas: digest (per-article summary), editor (per-user top-10 ranking), email (Resend HTML send) | ✅ shipped |
 | **3** | **Scheduler** | `news-scheduler-dev` Lambda + 2 Step Functions state machines (cron pipeline + remix-user) + EventBridge cron + CloudWatch alarms | ✅ shipped |
-| 4 | **API + Auth** | FastAPI on Lambda + API Gateway + Clerk JWT (multi-tenant onboarding) | not started |
+| **4** | **API + Auth** | FastAPI on Lambda + API Gateway HTTP API + Clerk JWT (lazy-upsert via FastAPI dep). Six endpoints powering the upcoming Next.js frontend (#5). | ✅ shipped |
 | 5 | **Frontend** | Next.js + Clerk + S3/CloudFront (profile editor, digest history, "remix now" button) | not started |
 | 6 | **CI/CD + Ops** | GitHub Actions deploy pipelines, cross-cutting alerts, runbooks | not started |
 
@@ -418,7 +419,7 @@ artefact).
 | 1 | Ingestion | `ingestion-v0.2.1` | ✅ ECS Express, dev workspace |
 | 2 | Agents | `agents-v0.3.0` | ✅ 3 Lambdas, dev workspace |
 | 3 | Scheduler + Orchestration | `scheduler-v0.4.0` | ✅ Lambda + 2 Step Functions + EventBridge cron |
-| 4 | API + Auth | — | not started |
+| 4 | API + Auth | `api-v0.5.0` | ✅ Lambda + API Gateway HTTP API + IAM scoped to remix SFN |
 | 5 | Frontend | — | not started |
 | 6 | CI/CD + Ops | — | not started |
 
@@ -612,6 +613,36 @@ make scheduler-list-new-digests                   # what's queued for email toda
 
 These hit the DB directly without going through Lambda — handy for
 debugging the predicates that drive the production fan-out.
+
+## Running the API (#4)
+
+A FastAPI app on Lambda behind API Gateway HTTP API, exposing six
+endpoints (`/v1/healthz`, `/v1/me`, `/v1/me/profile`, `/v1/digests`,
+`/v1/digests/{id}`, `/v1/remix`) for the upcoming Next.js frontend.
+JWTs from Clerk are validated in a FastAPI dependency that
+lazy-upserts the user row on first call.
+
+```sh
+# Local dev (uvicorn — bypasses Mangum)
+make api-serve
+
+# Deploy (CLERK_ISSUER required for first deploy)
+export CLERK_ISSUER=https://<clerk-frontend-api>
+make api-deploy
+
+# Smoke
+make api-invoke                            # GET /v1/healthz
+make api-test-me JWT=<real-clerk-jwt>      # GET /v1/me
+
+# Logs
+make api-logs SINCE=10m
+make api-logs-follow
+```
+
+Sub-project #4 adds one new SSM SecureString (`clerk_secret_key`); the
+publishable key lives in the frontend, not the backend. See
+[infra/README.md](infra/README.md) § "Sub-project #4 — API + Auth"
+for full lifecycle, IAM scope, and failure modes.
 
 ---
 

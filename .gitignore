@@ -29,3 +29,5 @@ htmlcov/
 # Lambda build artifacts
 services/agents/*/dist/
 services/agents/*/.package.Dockerfile
+services/scheduler/dist/
+services/scheduler/.package.Dockerfile

@@ -357,3 +357,111 @@ terraform apply \
   -var=zip_sha256=<previous-base64-sha256> \
   -var=scraper_base_url=https://$(cd ../scraper && terraform output -raw scraper_endpoint)
 ```
+
+## Sub-project #4 — API + Auth
+
+A `news-api-dev` Lambda fronted by an API Gateway HTTP API exposing six
+endpoints (`/v1/healthz`, `/v1/me`, `/v1/me/profile`, `/v1/digests`,
+`/v1/digests/{id}`, `/v1/remix`). Validates Clerk JWTs in a FastAPI
+dependency, lazy-creates user rows on first call, and triggers the
+remix state machine (#3) for on-demand digest re-runs.
+
+### One-time IAM extension
+
+**None.** `NewsAggregatorComputeAccess` already grants
+`AWSLambda_FullAccess`, `AmazonAPIGatewayAdministrator`, and
+`AmazonS3FullAccess` — those cover everything `infra/api/` provisions.
+
+### Per-module Terraform init
+
+```sh
+ACCT=$(aws sts get-caller-identity --profile aiengineer --query Account --output text)
+cd infra/api
+terraform init \
+  -backend-config="bucket=news-aggregator-tf-state-$ACCT" \
+  -backend-config="key=api/terraform.tfstate" \
+  -backend-config="region=us-east-1" \
+  -backend-config="profile=aiengineer"
+terraform workspace new dev   # or: terraform workspace select dev
+```
+
+### SSM secret seed
+
+```sh
+aws ssm put-parameter \
+  --name /news-aggregator/dev/clerk_secret_key \
+  --value "<your-clerk-secret-key>" \
+  --type SecureString \
+  --overwrite \
+  --profile aiengineer
+```
+
+`clerk_publishable_key` is **not** stored in SSM — it's, by definition,
+public, and lives in the Next.js frontend's env file (#5).
+
+### Deploy
+
+```sh
+export CLERK_ISSUER=https://<your-clerk-frontend-api>
+export ALLOWED_ORIGINS=http://localhost:3000
+make api-deploy
+```
+
+First apply creates ~10 resources: Lambda + IAM role + 2 policy attachments
++ log group + HTTP API + stage + integration + route + Lambda permission +
+access log group + 5xx alarm.
+
+### Invoke + monitor
+
+```sh
+make api-invoke                          # smoke /v1/healthz
+make api-test-me JWT=<real-clerk-jwt>    # GET /v1/me
+
+make api-logs SINCE=10m                  # tail Lambda logs
+make api-logs-follow
+
+# Local dev (no AWS):
+make api-serve
+```
+
+### Failure modes
+
+- **`401 invalid token` in dev** — your `CLERK_ISSUER` env var points at
+  a different Clerk instance than the one minting your JWT. Inspect the
+  deployed config:
+  `aws lambda get-function-configuration --function-name news-api-dev
+  --query 'Environment.Variables' --profile aiengineer`.
+- **`401 missing bearer token` from the frontend** — CORS preflight
+  passing but the actual fetch missing `Authorization` header.
+- **`AccessDenied` on remix `start_execution`** — the API role's IAM
+  is scoped to the *exact* remix ARN read via
+  `terraform_remote_state.scheduler`. If you re-applied the scheduler
+  with a different workspace, the API's stored ARN may be stale —
+  re-run `terraform apply` on the API module.
+- **`RuntimeError: ... attached to a different loop`** — the
+  `reset_engine()` call at the top of `handler()` was removed or
+  bypassed. Re-add it (see #2/#3 anti-pattern).
+- **CORS preflight 404s** — `var.allowed_origins` doesn't include the
+  caller's origin. Update and re-apply.
+
+### Roll back
+
+To roll back the Lambda code:
+
+```sh
+cd infra/api
+terraform apply \
+  -var=zip_s3_key=api/<previous-sha>.zip \
+  -var=zip_sha256=<previous-base64-sha256> \
+  -var=git_sha=<previous-sha> \
+  -var=clerk_issuer=https://<your-clerk-frontend-api>
+```
+
+To destroy the API module entirely (keeps the artefact bucket, the
+scheduler, and all state):
+
+```sh
+cd infra/api
+terraform destroy -var=zip_s3_key=anything -var=zip_sha256=anything \
+  -var=git_sha=anything -var=clerk_issuer=https://placeholder.example.com
+```

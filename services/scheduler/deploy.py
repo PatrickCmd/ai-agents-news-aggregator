@@ -23,7 +23,10 @@ import boto3
 
 AGENT_DIR = Path(__file__).resolve().parent
 PACKAGE = "news_scheduler"
-TF_DIR = AGENT_DIR.parents[2] / "infra" / "scheduler"
+# AGENT_DIR is .../services/scheduler — already the directory.
+# parents[0]=services, parents[1]=repo_root. Don't copy `parents[2]` from the
+# agents' deploy.py (they're at services/agents/<name>/, one level deeper).
+TF_DIR = AGENT_DIR.parents[1] / "infra" / "scheduler"
 
 
 def _profile() -> str:
@@ -75,7 +78,7 @@ def _upload(s: boto3.Session, sha: str, zip_path: Path) -> str:
 
 def _scraper_base_url() -> str:
     """Read the scraper's HTTPS endpoint from infra/scraper/ Terraform output."""
-    scraper_tf = AGENT_DIR.parents[2] / "infra" / "scraper"
+    scraper_tf = AGENT_DIR.parents[1] / "infra" / "scraper"
     result = subprocess.run(
         ["terraform", "output", "-raw", "scraper_endpoint"],
         cwd=scraper_tf,

@@ -5,7 +5,7 @@ from __future__ import annotations
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from news_api.routes import digests, healthz, me
+from news_api.routes import digests, healthz, me, remix
 from news_api.settings import get_api_settings
 
 
@@ -23,4 +23,5 @@ def create_app() -> FastAPI:
     app.include_router(healthz.router, prefix="/v1")
     app.include_router(me.router, prefix="/v1")
     app.include_router(digests.router, prefix="/v1")
+    app.include_router(remix.router, prefix="/v1")
     return app

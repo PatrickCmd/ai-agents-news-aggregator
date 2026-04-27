@@ -1,0 +1,6 @@
+# Set these for `terraform apply` (or pass via -var on the command line).
+zip_s3_key      = "api/<git-sha>.zip"
+zip_sha256      = "<base64-sha256-of-zip>"
+git_sha         = "<git-sha>"
+clerk_issuer    = "https://clerk.example.com"
+allowed_origins = ["http://localhost:3000"]

@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 import os
 import sys
+from datetime import UTC, datetime
 
 from news_config.loader import load_user_profile_yaml
 from news_db.engine import get_session
@@ -23,12 +24,17 @@ async def main() -> int:
     profile, identity = load_user_profile_yaml()
     email = os.getenv("SEED_USER_EMAIL", "seed@example.com")
 
+    # The YAML profile is complete by definition — mark the user as onboarded
+    # so the scheduler's editor stage (list_active_user_ids) picks them up.
+    # In prod, profile_completed_at will be set by the Clerk-driven onboarding
+    # flow in #4.
     user_in = UserIn(
         clerk_user_id="dev-seed-user",
         email=email,
         name=identity["name"],
         email_name=identity["email_name"],
         profile=profile,
+        profile_completed_at=datetime.now(UTC),
     )
 
     async with get_session() as session:

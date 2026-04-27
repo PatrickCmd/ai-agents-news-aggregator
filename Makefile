@@ -345,3 +345,64 @@ agents-logs-follow:           ## follow one agent's logs in real time (AGENT=dig
 tag-agents:                   ## tag sub-project #2 release
 	git tag -f -a agents-v0.3.0 -m "Sub-project #2 Agents (digest + editor + email Lambdas)"
 	@echo "Push with: git push origin agents-v0.3.0"
+
+# ---------- scheduler (#3) ----------
+
+.PHONY: scheduler-deploy-build scheduler-deploy \
+        scheduler-list-unsummarised scheduler-list-active-users scheduler-list-new-digests \
+        cron-invoke cron-history cron-describe \
+        remix-invoke remix-history \
+        scheduler-logs scheduler-logs-follow tag-scheduler
+
+scheduler-deploy-build:           ## build + s3 upload (scheduler)
+	uv run python services/scheduler/deploy.py --mode build
+
+scheduler-deploy:                 ## build + terraform apply (scheduler)
+	uv run python services/scheduler/deploy.py --mode deploy --env dev
+
+scheduler-list-unsummarised:      ## local CLI: print unsummarised article IDs  [LOOKBACK=24]
+	uv run python -m news_scheduler list-unsummarised --hours $${LOOKBACK:-24}
+
+scheduler-list-active-users:      ## local CLI: print active user IDs
+	uv run python -m news_scheduler list-active-users
+
+scheduler-list-new-digests:       ## local CLI: print today's GENERATED digest IDs
+	uv run python -m news_scheduler list-new-digests
+
+cron-invoke:                      ## start-execution on news-cron-pipeline-dev
+	@CRON=$$(cd infra/scheduler && terraform output -raw cron_state_machine_arn) && \
+	  aws stepfunctions start-execution --state-machine-arn "$$CRON" --input '{}' --profile aiengineer | jq
+
+cron-history:                     ## list 5 most recent cron executions
+	@CRON=$$(cd infra/scheduler && terraform output -raw cron_state_machine_arn) && \
+	  aws stepfunctions list-executions --state-machine-arn "$$CRON" --max-items 5 --profile aiengineer \
+	  --query 'executions[].{Status:status,Start:startDate,Name:name}' --output table
+
+cron-describe:                    ## describe one execution by name (NAME=...)
+	@test -n "$(NAME)" || (echo "NAME required: make cron-describe NAME=<exec-name>" && exit 1)
+	@CRON=$$(cd infra/scheduler && terraform output -raw cron_state_machine_arn) && \
+	  aws stepfunctions describe-execution \
+	  --execution-arn "$${CRON/stateMachine/execution}:$(NAME)" \
+	  --profile aiengineer | jq
+
+remix-invoke:                     ## start-execution on news-remix-user-dev (USER_ID=...)
+	@test -n "$(USER_ID)" || (echo "USER_ID required: make remix-invoke USER_ID=<uuid>" && exit 1)
+	@REMIX=$$(cd infra/scheduler && terraform output -raw remix_state_machine_arn) && \
+	  aws stepfunctions start-execution --state-machine-arn "$$REMIX" \
+	  --input "{\"user_id\":\"$(USER_ID)\",\"lookback_hours\":$${LOOKBACK:-24}}" \
+	  --profile aiengineer | jq
+
+remix-history:                    ## list 5 most recent remix executions
+	@REMIX=$$(cd infra/scheduler && terraform output -raw remix_state_machine_arn) && \
+	  aws stepfunctions list-executions --state-machine-arn "$$REMIX" --max-items 5 --profile aiengineer \
+	  --query 'executions[].{Status:status,Start:startDate,Name:name}' --output table
+
+scheduler-logs:                   ## tail scheduler Lambda logs  [SINCE=10m]
+	aws logs tail /aws/lambda/news-scheduler-dev --since $${SINCE:-10m} --profile aiengineer
+
+scheduler-logs-follow:            ## follow scheduler Lambda logs in real time
+	aws logs tail /aws/lambda/news-scheduler-dev --follow --profile aiengineer
+
+tag-scheduler:                    ## tag sub-project #3
+	git tag -f -a scheduler-v0.4.0 -m "Sub-project #3 Scheduler + Orchestration"
+	@echo "Push with: git push origin scheduler-v0.4.0"

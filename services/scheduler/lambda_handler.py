@@ -15,6 +15,7 @@ from news_config.lambda_settings import load_settings_from_ssm
 
 load_settings_from_ssm(prefix=os.environ.get("SSM_PARAM_PREFIX", "/news-aggregator/dev"))
 
+from news_db.engine import reset_engine  # noqa: E402
 from news_observability.logging import get_logger, setup_logging  # noqa: E402
 from news_scheduler.handlers import (  # noqa: E402
     list_active_users,
@@ -36,6 +37,11 @@ def handler(event: dict[str, Any], context: object) -> dict[str, Any]:
 
     Returns ``{"failed": True, "reason": ..., ...}`` on bad input — never raises.
     """
+    # Drop the cached SQLAlchemy engine: each invocation runs `asyncio.run(...)`
+    # which creates a new event loop, but the pool's asyncpg connections are
+    # bound to whichever loop first opened them. On warm-start reuse, the old
+    # loop is closed → `RuntimeError: ... attached to a different loop`.
+    reset_engine()
     op = event.get("op")
     if not op:
         _log.error("malformed event {}: missing op", event)

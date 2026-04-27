@@ -37,3 +37,24 @@ variable "log_retention_days" {
   type    = number
   default = 14
 }
+
+variable "digest_max_concurrency" {
+  type    = number
+  default = 10
+}
+
+variable "editor_max_concurrency" {
+  type    = number
+  default = 5
+}
+
+variable "email_max_concurrency" {
+  type    = number
+  default = 2
+}
+
+variable "scraper_poll_max_iterations" {
+  description = "Max poll iterations (× 30s = wall-clock cap on scraper run wait)"
+  type        = number
+  default     = 60
+}

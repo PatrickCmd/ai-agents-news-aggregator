@@ -1,0 +1,79 @@
+{
+  "Comment": "Remix: editor -> email for one user (manual UI trigger)",
+  "StartAt": "InvokeEditor",
+  "States": {
+    "InvokeEditor": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "${news_editor_arn}",
+        "Payload": {
+          "user_id.$": "$.user_id",
+          "lookback_hours.$": "$.lookback_hours"
+        }
+      },
+      "ResultSelector": {
+        "editor.$": "$.Payload"
+      },
+      "Retry": [
+        {
+          "ErrorEquals": ["Lambda.ServiceException", "Lambda.TooManyRequestsException"],
+          "IntervalSeconds": 5,
+          "MaxAttempts": 2,
+          "BackoffRate": 2.0,
+          "JitterStrategy": "FULL"
+        }
+      ],
+      "Next": "EditorOK"
+    },
+    "EditorOK": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.editor.failed",
+          "BooleanEquals": true,
+          "Next": "EditorFailed"
+        },
+        {
+          "Variable": "$.editor.status",
+          "StringEquals": "failed",
+          "Next": "EditorFailed"
+        },
+        {
+          "Variable": "$.editor.digest_id",
+          "IsPresent": true,
+          "Next": "InvokeEmail"
+        }
+      ],
+      "Default": "EditorFailed"
+    },
+    "EditorFailed": {
+      "Type": "Fail",
+      "Error": "EditorProducedNoSendableDigest",
+      "Cause": "Editor returned failure or no digest_id"
+    },
+    "InvokeEmail": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "${news_email_arn}",
+        "Payload": {
+          "digest_id.$": "$.editor.digest_id"
+        }
+      },
+      "ResultSelector": {
+        "email.$": "$.Payload"
+      },
+      "ResultPath": "$.result",
+      "Retry": [
+        {
+          "ErrorEquals": ["Lambda.TooManyRequestsException"],
+          "IntervalSeconds": 30,
+          "MaxAttempts": 3,
+          "BackoffRate": 2.0
+        }
+      ],
+      "End": true
+    }
+  }
+}

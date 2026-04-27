@@ -15,7 +15,7 @@ from news_config.lambda_settings import load_settings_from_ssm
 
 load_settings_from_ssm(prefix=os.environ.get("SSM_PARAM_PREFIX", "/news-aggregator/dev"))
 
-from news_db.engine import get_session  # noqa: E402
+from news_db.engine import get_session, reset_engine  # noqa: E402
 from news_db.repositories.article_repo import ArticleRepository  # noqa: E402
 from news_db.repositories.audit_log_repo import AuditLogRepository  # noqa: E402
 from news_digest import pipeline  # noqa: E402
@@ -39,6 +39,11 @@ def handler(event: dict[str, Any], context: object) -> dict[str, Any]:
     except (KeyError, TypeError, ValueError) as exc:
         _log.error("malformed event {}: {}", event, exc)
         return {"failed": True, "reason": "malformed_event", "error": str(exc)}
+    # Drop the cached SQLAlchemy engine: each invocation runs `asyncio.run(...)`
+    # which creates a new event loop, but the pool's asyncpg connections are
+    # bound to whichever loop first opened them. On warm-start reuse, the old
+    # loop is closed → `RuntimeError: ... attached to a different loop`.
+    reset_engine()
     return asyncio.run(_run(article_id))
 
 

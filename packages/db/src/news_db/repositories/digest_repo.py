@@ -3,7 +3,7 @@ from __future__ import annotations
 from uuid import UUID
 
 from news_schemas.digest import DigestIn, DigestOut, DigestStatus
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from news_db.models.digest import Digest
@@ -55,3 +55,18 @@ class DigestRepository:
     async def get_by_id(self, digest_id: int) -> DigestOut | None:
         row = await self._session.get(Digest, digest_id)
         return DigestOut.model_validate(row, from_attributes=True) if row else None
+
+    async def list_generated_today(self) -> list[int]:
+        """Digest IDs created today (UTC) with status=GENERATED.
+
+        Used by the scheduler's email stage to fan out per new digest.
+        Excludes FAILED (no email needed) and EMAILED (already sent).
+        """
+        stmt = (
+            select(Digest.id)
+            .where(Digest.generated_at >= func.date_trunc("day", func.now()))
+            .where(Digest.status == DigestStatus.GENERATED.value)
+            .order_by(Digest.generated_at)
+        )
+        rows = (await self._session.execute(stmt)).scalars().all()
+        return list(rows)

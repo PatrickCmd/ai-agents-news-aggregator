@@ -15,7 +15,7 @@ The system is broken into seven independent sub-projects. Each has its own brain
 | **0** | Foundation — monorepo skeleton, shared packages (`db`, `schemas`, `config`, `observability`), Supabase schema, dev/test workflow, CI | shipped — tag `foundation-v0.1.1` |
 | **1** | Ingestion pipeline (ECS Express service): RSS + YouTube + Playwright web-search, plus per-sub-project Terraform under `infra/scraper/` | shipped — tag `ingestion-v0.2.1` |
 | **2** | Digest + Editor + Email agents (Lambda chain) — Lambda zips on S3, per-agent Terraform under `infra/{digest,editor,email}/` | shipped — tag `agents-v0.3.0` |
-| 3 | Scheduler + orchestration (EventBridge → ECS → Lambda) | not started |
+| **3** | Scheduler + orchestration — `news_scheduler` Lambda + 2 Step Functions state machines (cron pipeline + remix-user), EventBridge cron at 21:00 UTC, per-sub-project Terraform under `infra/scheduler/` | shipped — tag `scheduler-v0.4.0` |
 | 4 | API + Auth (FastAPI on Lambda, Clerk JWT) | not started |
 | 5 | Frontend (Next.js + Clerk + S3/CloudFront) | not started |
 | 6 | CI/CD pipelines + cross-sub-project ops (per-sub-project Terraform is owned by each sub-project, not #6) | not started |
@@ -41,6 +41,7 @@ ai-agent-news-aggregator/
 │   │       ├── main.py             # uvicorn entry
 │   │       └── cli.py              # Typer CLI
 │   ├── agents/                     # Lambda — digest, editor, email (#2)
+│   ├── scheduler/                  # Lambda — list_unsummarised / list_active_users / list_new_digests (#3)
 │   └── api/                        # Lambda — FastAPI + Clerk (#4)
 ├── infra/                          # per-sub-project Terraform modules + bootstrap
 │   ├── README.md                   # apply order, recovery, day-to-day ops
@@ -49,6 +50,8 @@ ai-agent-news-aggregator/
 │   │   ├── *.tf
 │   │   ├── service.sh              # ECS service helper (pause/resume/pin/redeploy/status)
 │   │   └── sync_secrets.py         # push .env into SSM SecureString
+│   ├── {digest,editor,email}/      # per-agent Lambda + IAM (#2)
+│   ├── scheduler/                  # scheduler Lambda + 2 SFN state machines + EventBridge cron + alarms (#3)
 │   └── setup-iam.sh                # one-time NewsAggregator{Core,Compute}Access groups
 ├── web/                            # Next.js frontend (#5)
 ├── scripts/                        # dev utilities (reset_db.py, seed_user.py)
@@ -227,6 +230,48 @@ name inline (no `terraform_remote_state` indirection).
 See `infra/README.md` § "Sub-project #2 — agents" for full lifecycle,
 rollback, and IAM scope details.
 
+### Sub-project #3 (Scheduler) — operational commands
+
+A `news-scheduler-dev` Lambda (3 list ops dispatched by `event["op"]`) plus
+two Step Functions state machines orchestrating end-to-end runs:
+
+- **`news-cron-pipeline-dev`** — daily fan-out triggered by EventBridge
+  `cron(0 21 * * ? *)` (00:00 EAT). Scraper HTTP trigger + poll → DigestMap →
+  EditorMap → EmailMap. Per-item Maps tolerate `100%` failures so one bad
+  article/user/digest doesn't fail the run.
+- **`news-remix-user-dev`** — single-user editor → email re-run, called from
+  the web UI's "remix my digest now" button (wired up in #4).
+
+```sh
+# Local CLI (no AWS — talks to DB directly)
+make scheduler-list-unsummarised LOOKBACK=24
+make scheduler-list-active-users
+make scheduler-list-new-digests
+
+# AWS deploy
+make scheduler-deploy
+
+# Invoke
+make cron-invoke                              # one-off cron pipeline run
+make cron-history                             # 5 most recent
+make cron-describe NAME=<exec-name>           # full state-by-state trace
+make remix-invoke USER_ID=<uuid> LOOKBACK=24
+make remix-history
+
+# Logs
+make scheduler-logs SINCE=10m
+make scheduler-logs-follow
+```
+
+The cron + remix state-machine definitions are templated ASL JSON under
+`infra/scheduler/templates/*.asl.json`. Editing them is a no-rebuild change:
+revert + `terraform apply` to roll back.
+
+See `infra/README.md` § "Sub-project #3 — scheduler" for failure modes
+(`Events.ConnectionResource.AccessDenied`, `States.Http.StatusCode.422`,
+asyncio-loop drift, empty `list_active_users`, `ScraperPollTimeout`) and
+rollback recipe.
+
 ## What NOT to do
 
 Anti-patterns that will break invariants in this repo. Reject these on review:
@@ -251,6 +296,9 @@ Anti-patterns that will break invariants in this repo. Reject these on review:
 - Do not name the Lambda handler module anything other than `lambda_handler.py` at the agent's package root. AWS Lambda's handler config requires `handler = "lambda_handler.handler"`, and unit tests for these handlers MUST `sys.modules.pop("lambda_handler", None)` before each `import lambda_handler` to avoid cross-agent collisions in pytest's shared interpreter.
 - Do not wrap the Resend HTTP client with `@retry_transient` inside `news_email.pipeline`. The retry decorator must wrap at the call site (Lambda handler / CLI) — wrapping inside the pipeline would retry the 4xx error mappings (auth/validation/rate-limit) which are deterministic failures.
 - Do not use `data.terraform_remote_state.bootstrap` in the per-agent Lambda Terraform modules. The bootstrap module uses local state (chicken-and-egg). Compute the artifacts bucket name inline: `"news-aggregator-lambda-artifacts-${data.aws_caller_identity.current.account_id}"`.
+- Do not omit `news_db.engine.reset_engine()` at the top of any Lambda handler that uses SQLAlchemy. The engine + connection pool are process-level singletons; warm-start container reuse keeps connections bound to a previous (closed) event loop, causing `RuntimeError: ... attached to a different loop` on the next `asyncio.run(...)`. All four current Lambdas (`scheduler`, `digest`, `editor`, `email`) call it; new Lambdas must too.
+- Do not assume Step Functions' `arn:aws:states:::http:invoke` only needs `events:RetrieveConnectionCredentials` on the connection. It also needs **both** `secretsmanager:DescribeSecret` AND `secretsmanager:GetSecretValue` on the connection's auto-created secret. Granting one without the other surfaces as `Events.ConnectionResource.AccessDenied`.
+- Do not change the scraper's `IngestRequest.trigger` enum without checking who calls `/ingest`. Today the cron pipeline sends `"scheduler"` (per `^(api|cli|scheduler)$`). Adding/removing values requires a coordinated rev across `services/scraper/api/routes.py` and `infra/scheduler/templates/cron_pipeline.asl.json`.
 
 ## Security
 

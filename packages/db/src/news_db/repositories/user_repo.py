@@ -69,3 +69,14 @@ class UserRepository:
         await self._session.commit()
         await self._session.refresh(row)
         return UserOut.model_validate(row, from_attributes=True)
+
+    async def list_active_user_ids(self) -> list[UUID]:
+        """All users whose onboarding is complete (profile_completed_at IS NOT NULL).
+
+        Used by the scheduler's editor stage to fan out per active user.
+        """
+        stmt = (
+            select(User.id).where(User.profile_completed_at.is_not(None)).order_by(User.created_at)
+        )
+        rows = (await self._session.execute(stmt)).scalars().all()
+        return list(rows)

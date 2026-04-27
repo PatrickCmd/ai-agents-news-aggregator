@@ -1,0 +1,3 @@
+zip_s3_key       = "scheduler/<git-sha>.zip"
+zip_sha256       = "<base64-sha256>"
+scraper_base_url = "https://scraper-...elb.amazonaws.com"

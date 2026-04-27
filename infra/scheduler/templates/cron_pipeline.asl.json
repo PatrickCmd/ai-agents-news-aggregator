@@ -1,0 +1,309 @@
+{
+  "Comment": "Daily news pipeline: scraper -> digest -> editor -> email",
+  "StartAt": "TriggerScraper",
+  "States": {
+    "TriggerScraper": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::http:invoke",
+      "Parameters": {
+        "ApiEndpoint": "${scraper_base_url}/ingest",
+        "Method": "POST",
+        "Authentication": {
+          "ConnectionArn": "${scraper_connection_arn}"
+        },
+        "RequestBody": {
+          "lookback_hours": 24,
+          "trigger": "scheduler"
+        }
+      },
+      "ResultPath": "$.scraper_start",
+      "Retry": [
+        {
+          "ErrorEquals": ["States.TaskFailed", "States.Timeout"],
+          "IntervalSeconds": 10,
+          "MaxAttempts": 2,
+          "BackoffRate": 2.0,
+          "JitterStrategy": "FULL"
+        }
+      ],
+      "Next": "InitPollCount"
+    },
+    "InitPollCount": {
+      "Type": "Pass",
+      "Result": 0,
+      "ResultPath": "$.poll_count",
+      "Next": "WaitForScraper"
+    },
+    "WaitForScraper": {
+      "Type": "Wait",
+      "Seconds": 30,
+      "Next": "PollScraper"
+    },
+    "PollScraper": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::http:invoke",
+      "Parameters": {
+        "ApiEndpoint.$": "States.Format('${scraper_base_url}/runs/{}', $.scraper_start.ResponseBody.id)",
+        "Method": "GET",
+        "Authentication": {
+          "ConnectionArn": "${scraper_connection_arn}"
+        }
+      },
+      "ResultPath": "$.scraper_run",
+      "Retry": [
+        {
+          "ErrorEquals": ["States.TaskFailed", "States.Timeout"],
+          "IntervalSeconds": 5,
+          "MaxAttempts": 3,
+          "BackoffRate": 2.0
+        }
+      ],
+      "Next": "IncrementPollCount"
+    },
+    "IncrementPollCount": {
+      "Type": "Pass",
+      "Parameters": {
+        "poll_count.$": "States.MathAdd($.poll_count, 1)",
+        "scraper_start.$": "$.scraper_start",
+        "scraper_run.$": "$.scraper_run"
+      },
+      "ResultPath": "$",
+      "Next": "ScraperDone"
+    },
+    "ScraperDone": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.poll_count",
+          "NumericGreaterThan": ${scraper_poll_max_iterations},
+          "Next": "ScraperPollTimeout"
+        },
+        {
+          "Variable": "$.scraper_run.ResponseBody.status",
+          "StringEquals": "success",
+          "Next": "ListUnsummarised"
+        },
+        {
+          "Variable": "$.scraper_run.ResponseBody.status",
+          "StringEquals": "partial",
+          "Next": "ListUnsummarised"
+        },
+        {
+          "Variable": "$.scraper_run.ResponseBody.status",
+          "StringEquals": "failed",
+          "Next": "ScraperFailed"
+        }
+      ],
+      "Default": "WaitForScraper"
+    },
+    "ScraperFailed": {
+      "Type": "Fail",
+      "Error": "ScraperRunFailed",
+      "Cause": "Scraper reported status=failed"
+    },
+    "ScraperPollTimeout": {
+      "Type": "Fail",
+      "Error": "ScraperPollTimeout",
+      "Cause": "Scraper run did not reach terminal status before iteration cap"
+    },
+    "ListUnsummarised": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "${scheduler_lambda_arn}",
+        "Payload": {
+          "op": "list_unsummarised",
+          "hours": 24,
+          "limit": 200
+        }
+      },
+      "ResultSelector": {
+        "article_ids.$": "$.Payload.article_ids"
+      },
+      "ResultPath": "$.unsummarised",
+      "Retry": [
+        {
+          "ErrorEquals": ["Lambda.ServiceException", "Lambda.TooManyRequestsException"],
+          "IntervalSeconds": 5,
+          "MaxAttempts": 3,
+          "BackoffRate": 2.0
+        }
+      ],
+      "Next": "DigestMap"
+    },
+    "DigestMap": {
+      "Type": "Map",
+      "ItemsPath": "$.unsummarised.article_ids",
+      "MaxConcurrency": ${digest_max_concurrency},
+      "ToleratedFailurePercentage": 100,
+      "ItemProcessor": {
+        "ProcessorConfig": { "Mode": "INLINE" },
+        "StartAt": "InvokeDigest",
+        "States": {
+          "InvokeDigest": {
+            "Type": "Task",
+            "Resource": "arn:aws:states:::lambda:invoke",
+            "Parameters": {
+              "FunctionName": "${news_digest_arn}",
+              "Payload": {
+                "article_id.$": "$"
+              }
+            },
+            "Retry": [
+              {
+                "ErrorEquals": ["Lambda.ServiceException", "Lambda.TooManyRequestsException"],
+                "IntervalSeconds": 5,
+                "MaxAttempts": 2,
+                "BackoffRate": 2.0,
+                "JitterStrategy": "FULL"
+              }
+            ],
+            "Catch": [
+              {
+                "ErrorEquals": ["States.ALL"],
+                "Next": "DigestSkipped"
+              }
+            ],
+            "End": true
+          },
+          "DigestSkipped": {
+            "Type": "Pass",
+            "End": true
+          }
+        }
+      },
+      "ResultPath": null,
+      "Next": "ListActiveUsers"
+    },
+    "ListActiveUsers": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "${scheduler_lambda_arn}",
+        "Payload": { "op": "list_active_users" }
+      },
+      "ResultSelector": {
+        "user_ids.$": "$.Payload.user_ids"
+      },
+      "ResultPath": "$.active_users",
+      "Retry": [
+        {
+          "ErrorEquals": ["Lambda.ServiceException", "Lambda.TooManyRequestsException"],
+          "IntervalSeconds": 5,
+          "MaxAttempts": 3,
+          "BackoffRate": 2.0
+        }
+      ],
+      "Next": "EditorMap"
+    },
+    "EditorMap": {
+      "Type": "Map",
+      "ItemsPath": "$.active_users.user_ids",
+      "MaxConcurrency": ${editor_max_concurrency},
+      "ToleratedFailurePercentage": 100,
+      "ItemProcessor": {
+        "ProcessorConfig": { "Mode": "INLINE" },
+        "StartAt": "InvokeEditor",
+        "States": {
+          "InvokeEditor": {
+            "Type": "Task",
+            "Resource": "arn:aws:states:::lambda:invoke",
+            "Parameters": {
+              "FunctionName": "${news_editor_arn}",
+              "Payload": {
+                "user_id.$": "$",
+                "lookback_hours": 24
+              }
+            },
+            "Retry": [
+              {
+                "ErrorEquals": ["Lambda.ServiceException", "Lambda.TooManyRequestsException"],
+                "IntervalSeconds": 5,
+                "MaxAttempts": 2,
+                "BackoffRate": 2.0,
+                "JitterStrategy": "FULL"
+              }
+            ],
+            "Catch": [
+              {
+                "ErrorEquals": ["States.ALL"],
+                "Next": "EditorSkipped"
+              }
+            ],
+            "End": true
+          },
+          "EditorSkipped": {
+            "Type": "Pass",
+            "End": true
+          }
+        }
+      },
+      "ResultPath": null,
+      "Next": "ListNewDigests"
+    },
+    "ListNewDigests": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "${scheduler_lambda_arn}",
+        "Payload": { "op": "list_new_digests" }
+      },
+      "ResultSelector": {
+        "digest_ids.$": "$.Payload.digest_ids"
+      },
+      "ResultPath": "$.new_digests",
+      "Retry": [
+        {
+          "ErrorEquals": ["Lambda.ServiceException", "Lambda.TooManyRequestsException"],
+          "IntervalSeconds": 5,
+          "MaxAttempts": 3,
+          "BackoffRate": 2.0
+        }
+      ],
+      "Next": "EmailMap"
+    },
+    "EmailMap": {
+      "Type": "Map",
+      "ItemsPath": "$.new_digests.digest_ids",
+      "MaxConcurrency": ${email_max_concurrency},
+      "ToleratedFailurePercentage": 100,
+      "ItemProcessor": {
+        "ProcessorConfig": { "Mode": "INLINE" },
+        "StartAt": "InvokeEmail",
+        "States": {
+          "InvokeEmail": {
+            "Type": "Task",
+            "Resource": "arn:aws:states:::lambda:invoke",
+            "Parameters": {
+              "FunctionName": "${news_email_arn}",
+              "Payload": {
+                "digest_id.$": "$"
+              }
+            },
+            "Retry": [
+              {
+                "ErrorEquals": ["Lambda.TooManyRequestsException"],
+                "IntervalSeconds": 30,
+                "MaxAttempts": 3,
+                "BackoffRate": 2.0
+              }
+            ],
+            "Catch": [
+              {
+                "ErrorEquals": ["States.ALL"],
+                "Next": "EmailSkipped"
+              }
+            ],
+            "End": true
+          },
+          "EmailSkipped": {
+            "Type": "Pass",
+            "End": true
+          }
+        }
+      },
+      "ResultPath": null,
+      "End": true
+    }
+  }
+}

@@ -13,7 +13,7 @@
         },
         "RequestBody": {
           "lookback_hours": 24,
-          "trigger": "cron"
+          "trigger": "scheduler"
         }
       },
       "ResultPath": "$.scraper_start",

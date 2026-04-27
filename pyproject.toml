@@ -16,6 +16,7 @@ members = [
     "services/agents/editor",
     "services/agents/email",
     "services/scheduler",
+    "services/api",
 ]
 
 [tool.uv.sources]
@@ -28,6 +29,7 @@ news_digest = { workspace = true }
 news_editor = { workspace = true }
 news_email = { workspace = true }
 news_scheduler = { workspace = true }
+news_api = { workspace = true }
 
 [dependency-groups]
 dev = [

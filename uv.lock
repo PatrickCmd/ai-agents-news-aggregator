@@ -9,6 +9,7 @@ resolution-markers = [
 [manifest]
 members = [
     "ai-agent-news-aggregator",
+    "news-api",
     "news-config",
     "news-db",
     "news-digest",
@@ -928,6 +929,18 @@ wheels = [
 ]
 
 [[package]]
+name = "mangum"
+version = "0.21.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "typing-extensions" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/89/cb/d9f4d685a0b8eceac10991e15ac471d9568e4e42c2489ae9bf072828c1c2/mangum-0.21.0.tar.gz", hash = "sha256:e31ed72d67f9958fa4379f65df77729906dec6dfa00afa6ed4e06c77833000de", size = 89130, upload-time = "2026-02-01T17:17:42.816Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/b7/50/e3c694b8e122551e4557450219283771334dee2ed5734a8398c8b8018c50/mangum-0.21.0-py3-none-any.whl", hash = "sha256:309e48f5c629542516c5106ecf079f4ec08809ed50df882238d98fe1392820c7", size = 17146, upload-time = "2026-02-01T17:17:41.553Z" },
+]
+
+[[package]]
 name = "markdown-it-py"
 version = "4.0.0"
 source = { registry = "https://pypi.org/simple" }
@@ -1086,6 +1099,45 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/a2/6e/371856a3fb9d31ca8dac321cda606860fa4548858c0cc45d9d1d4ca2628b/mypy_extensions-1.1.0.tar.gz", hash = "sha256:52e68efc3284861e772bbcd66823fde5ae21fd2fdb51c62a211403730b916558", size = 6343, upload-time = "2025-04-22T14:54:24.164Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/79/7b/2c79738432f5c924bef5071f933bcc9efd0473bac3b4aa584a6f7c1c8df8/mypy_extensions-1.1.0-py3-none-any.whl", hash = "sha256:1be4cccdb0f2482337c4743e60421de3a356cd97508abadd57d47403e94f5505", size = 4963, upload-time = "2025-04-22T14:54:22.983Z" },
+]
+
+[[package]]
+name = "news-api"
+version = "0.1.0"
+source = { editable = "services/api" }
+dependencies = [
+    { name = "boto3" },
+    { name = "fastapi" },
+    { name = "httpx" },
+    { name = "loguru" },
+    { name = "mangum" },
+    { name = "news-config" },
+    { name = "news-db" },
+    { name = "news-observability" },
+    { name = "news-schemas" },
+    { name = "pydantic" },
+    { name = "pydantic-settings" },
+    { name = "pyjwt", extra = ["crypto"] },
+    { name = "typer" },
+    { name = "uvicorn" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "boto3", specifier = ">=1.42.95" },
+    { name = "fastapi", specifier = ">=0.115" },
+    { name = "httpx", specifier = ">=0.28.1" },
+    { name = "loguru", specifier = ">=0.7.3" },
+    { name = "mangum", specifier = ">=0.19" },
+    { name = "news-config", editable = "packages/config" },
+    { name = "news-db", editable = "packages/db" },
+    { name = "news-observability", editable = "packages/observability" },
+    { name = "news-schemas", editable = "packages/schemas" },
+    { name = "pydantic", specifier = ">=2.13.3" },
+    { name = "pydantic-settings", specifier = ">=2.5" },
+    { name = "pyjwt", extras = ["crypto"], specifier = ">=2.9" },
+    { name = "typer", specifier = ">=0.24.2" },
+    { name = "uvicorn", specifier = ">=0.30" },
 ]
 
 [[package]]

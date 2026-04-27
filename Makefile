@@ -406,3 +406,36 @@ scheduler-logs-follow:            ## follow scheduler Lambda logs in real time
 tag-scheduler:                    ## tag sub-project #3
 	git tag -f -a scheduler-v0.4.0 -m "Sub-project #3 Scheduler + Orchestration"
 	@echo "Push with: git push origin scheduler-v0.4.0"
+
+# ---------- api (#4) ----------
+
+.PHONY: api-serve api-deploy-build api-deploy api-invoke api-test-me \
+        api-logs api-logs-follow tag-api
+
+api-serve:                  ## run FastAPI locally on :8000
+	uv run python -m news_api serve
+
+api-deploy-build:           ## build + s3 upload (api)
+	uv run python services/api/deploy.py --mode build
+
+api-deploy:                 ## build + terraform apply (api)
+	uv run python services/api/deploy.py --mode deploy --env dev
+
+api-invoke:                 ## smoke /healthz on the deployed endpoint
+	@URL=$$(cd infra/api && terraform output -raw api_endpoint) && \
+	  curl -s "$$URL/v1/healthz" | jq
+
+api-test-me:                ## test GET /me with $JWT (BYO token: export JWT=...)
+	@test -n "$(JWT)" || (echo "JWT required: export JWT=<clerk-jwt>" && exit 1)
+	@URL=$$(cd infra/api && terraform output -raw api_endpoint) && \
+	  curl -s -H "Authorization: Bearer $(JWT)" "$$URL/v1/me" | jq
+
+api-logs:                   ## tail api Lambda logs  [SINCE=10m]
+	aws logs tail /aws/lambda/news-api-dev --since $${SINCE:-10m} --profile aiengineer
+
+api-logs-follow:            ## follow api Lambda logs in real time
+	aws logs tail /aws/lambda/news-api-dev --follow --profile aiengineer
+
+tag-api:                    ## tag sub-project #4
+	git tag -f -a api-v0.5.0 -m "Sub-project #4 API + Auth"
+	@echo "Push with: git push origin api-v0.5.0"

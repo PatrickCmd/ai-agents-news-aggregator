@@ -4,10 +4,12 @@ A multi-source pipeline that ingests YouTube, RSS, and web-search content, summa
 
 ## Current status
 
-**Sub-project #0 (Foundation)** and **Sub-project #1 (Ingestion)** are implemented.
+**Sub-projects #0 → #3** are implemented and live on AWS.
 
-- Foundation ships the `packages/` workspace + schema. Tag `foundation-v0.1.1`.
-- Ingestion ships `services/scraper/` — a FastAPI + CLI service with three pipelines (YouTube RSS, blog RSS via rss-mcp, web search via Playwright MCP + OpenAI Agents SDK). Tag `ingestion-v0.2.0`.
+- **#0 Foundation** ships the `packages/` workspace + schema. Tag `foundation-v0.1.1`.
+- **#1 Ingestion** ships `services/scraper/` — a FastAPI + CLI service with three pipelines (YouTube RSS, blog RSS via rss-mcp, web search via Playwright MCP + OpenAI Agents SDK), running on ECS Express. Tag `ingestion-v0.2.1`.
+- **#2 Agents** ships three Lambda functions: `news-digest-dev` (per-article LLM summary), `news-editor-dev` (per-user top-10 ranking), `news-email-dev` (Resend-powered HTML digest). Tag `agents-v0.3.0`.
+- **#3 Scheduler** ships `news-scheduler-dev` (3-op list Lambda) plus two Step Functions state machines: `news-cron-pipeline-dev` (daily fan-out triggered by EventBridge cron at 21:00 UTC) and `news-remix-user-dev` (single-user re-run). Tag `scheduler-v0.4.0`.
 
 See [docs/superpowers/specs/](docs/superpowers/specs/) for design specs and [docs/superpowers/plans/](docs/superpowers/plans/) for implementation plans. Full sub-project breakdown (#0 through #6) is in [AGENTS.md](AGENTS.md).
 
@@ -161,6 +163,65 @@ The scraper exposes an ECS-auto-provisioned HTTPS endpoint. Grab it from
 See [infra/README.md](infra/README.md) for Terraform conventions.
 See [docs/ecs-express-bootstrap.md](docs/ecs-express-bootstrap.md) for the
 (minimal) manual prerequisites.
+
+## Running the agents (#2)
+
+Three independent Lambdas — digest (per-article LLM summary), editor
+(per-user top-10 ranking), email (Resend-powered HTML digest). Each ships
+as a zip artifact in S3 and lives in its own Terraform module.
+
+```sh
+# Local CLI (no AWS — talks to DB directly)
+make agents-digest ARTICLE_ID=42
+make agents-editor USER_ID=<uuid> LOOKBACK=24
+make agents-email DIGEST_ID=17
+
+# Deploy
+make digest-deploy
+make editor-deploy
+MAIL_FROM=hi@yourdomain.com make email-deploy
+
+# Live invoke + logs
+make digest-invoke ARTICLE_ID=42
+make agents-logs AGENT=email SINCE=10m
+```
+
+Sub-project #2 adds `RESEND_API_KEY` and `MAIL_FROM` to the SSM secrets tree
+(`/news-aggregator/<env>/*`). See [infra/README.md](infra/README.md)
+§ "Sub-project #2 — agents" for full lifecycle, IAM scope, and rollback.
+
+## Running the scheduler (#3)
+
+The cron pipeline state machine wires #1 → #2 into a daily end-to-end run
+triggered by EventBridge `cron(0 21 * * ? *)` (00:00 EAT). A separate
+remix-user state machine runs a single-user editor → email cycle on demand.
+
+```sh
+# Deploy the scheduler Lambda + state machines + EventBridge cron
+make scheduler-deploy
+
+# Run the full pipeline now (don't wait for the cron)
+make cron-invoke
+make cron-history                              # 5 most recent runs
+make cron-describe NAME=<exec-name>            # full state-by-state trace
+
+# Run remix for one user
+make remix-invoke USER_ID=<uuid> LOOKBACK=24
+
+# Local CLI (no AWS) — handy for debugging the 3 list ops
+make scheduler-list-unsummarised LOOKBACK=24
+make scheduler-list-active-users
+make scheduler-list-new-digests
+
+# Logs
+make scheduler-logs SINCE=10m
+make scheduler-logs-follow
+```
+
+Sub-project #3 extends the IAM groups with `AWSStepFunctionsFullAccess` and
+`CloudWatchFullAccess` — re-run `./infra/setup-iam.sh` if you bootstrapped
+before April 2026. See [infra/README.md](infra/README.md) § "Sub-project
+#3 — scheduler" for failure modes and rollback recipe.
 
 ## Day-to-day commands
 

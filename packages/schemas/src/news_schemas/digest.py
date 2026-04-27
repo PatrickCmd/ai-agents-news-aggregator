@@ -51,3 +51,23 @@ class DigestOut(BaseModel):
     status: DigestStatus
     error_message: str | None
     generated_at: datetime
+
+
+class DigestSummaryOut(BaseModel):
+    """Lighter projection of `Digest` for list views.
+
+    Excludes the heavy `ranked_articles` JSONB and `error_message`. Detail
+    view (`GET /v1/digests/{id}`) returns full `DigestOut`.
+    """
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    user_id: UUID
+    period_start: datetime
+    period_end: datetime
+    intro: str | None
+    top_themes: list[str]
+    article_count: int
+    status: DigestStatus
+    generated_at: datetime

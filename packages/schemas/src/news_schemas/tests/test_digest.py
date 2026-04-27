@@ -63,3 +63,44 @@ def test_digest_out_round_trip():
         generated_at=now,
     )
     assert d.status == DigestStatus.GENERATED
+
+
+def test_digest_summary_out_excludes_ranked_articles():
+    from news_schemas.digest import DigestSummaryOut
+
+    payload = {
+        "id": 17,
+        "user_id": uuid4(),
+        "period_start": datetime(2026, 4, 26, tzinfo=UTC),
+        "period_end": datetime(2026, 4, 27, tzinfo=UTC),
+        "intro": "Hi there",
+        "top_themes": ["agents", "infra"],
+        "article_count": 7,
+        "status": DigestStatus.GENERATED,
+        "generated_at": datetime(2026, 4, 27, 5, 0, tzinfo=UTC),
+    }
+    summary = DigestSummaryOut.model_validate(payload)
+    assert summary.id == 17
+    assert summary.article_count == 7
+    assert summary.intro == "Hi there"
+    assert "ranked_articles" not in summary.model_dump()
+    assert "error_message" not in summary.model_dump()
+
+
+def test_digest_summary_out_intro_optional():
+    from news_schemas.digest import DigestSummaryOut
+
+    summary = DigestSummaryOut.model_validate(
+        {
+            "id": 18,
+            "user_id": uuid4(),
+            "period_start": datetime(2026, 4, 26, tzinfo=UTC),
+            "period_end": datetime(2026, 4, 27, tzinfo=UTC),
+            "intro": None,
+            "top_themes": [],
+            "article_count": 0,
+            "status": DigestStatus.PENDING,
+            "generated_at": datetime(2026, 4, 27, 5, 0, tzinfo=UTC),
+        }
+    )
+    assert summary.intro is None

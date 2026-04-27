@@ -409,7 +409,7 @@ tag-scheduler:                    ## tag sub-project #3
 
 # ---------- api (#4) ----------
 
-.PHONY: api-serve api-deploy-build api-deploy api-invoke api-test-me \
+.PHONY: api-serve api-deploy-build api-deploy api-invoke api-test-me api-smoke \
         api-logs api-logs-follow tag-api
 
 api-serve:                  ## run FastAPI locally on :8000
@@ -429,6 +429,9 @@ api-test-me:                ## test GET /me with $JWT (BYO token: export JWT=...
 	@test -n "$(JWT)" || (echo "JWT required: export JWT=<clerk-jwt>" && exit 1)
 	@URL=$$(cd infra/api && terraform output -raw api_endpoint) && \
 	  curl -s -H "Authorization: Bearer $(JWT)" "$$URL/v1/me" | jq
+
+api-smoke:                  ## end-to-end smoke (requires USER_ID=user_xxx; see scripts/api-smoke.sh)
+	@./scripts/api-smoke.sh
 
 api-logs:                   ## tail api Lambda logs  [SINCE=10m]
 	aws logs tail /aws/lambda/news-api-dev --since $${SINCE:-10m} --profile aiengineer

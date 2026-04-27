@@ -415,7 +415,14 @@ access log group + 5xx alarm.
 
 ```sh
 make api-invoke                          # smoke /v1/healthz
-make api-test-me JWT=<real-clerk-jwt>    # GET /v1/me
+make api-test-me JWT=<real-clerk-jwt>    # GET /v1/me with a JWT you minted
+
+# Full end-to-end smoke — mints its own JWT via Clerk Backend API, hits all
+# four authenticated endpoints, optionally triggers a remix run. Requires
+# a `news-api` JWT template in Clerk Dashboard with email + name claims
+# and ≥120s lifetime; see scripts/api-smoke.sh header for setup.
+USER_ID=user_xxx make api-smoke                # full smoke
+USER_ID=user_xxx SKIP_REMIX=1 make api-smoke   # skip the SFN run
 
 make api-logs SINCE=10m                  # tail Lambda logs
 make api-logs-follow

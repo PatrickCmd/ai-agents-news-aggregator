@@ -39,6 +39,26 @@ class UserProfile(BaseModel):
     goals: list[str] = Field(default_factory=list)
     reading_time: ReadingTime
 
+    @classmethod
+    def empty(cls) -> UserProfile:
+        """Empty / not-yet-onboarded profile.
+
+        Used by the API's lazy-upsert path before the user has visited the
+        profile editor. The editor agent filters by `profile_completed_at IS
+        NOT NULL`, so empty profiles are inert until the user completes
+        onboarding.
+        """
+        return cls(
+            background=[],
+            interests=Interests(primary=[], secondary=[], specific_topics=[]),
+            preferences=Preferences(content_type=[], avoid=[]),
+            goals=[],
+            reading_time=ReadingTime(
+                daily_limit="30 minutes",
+                preferred_article_count="10",
+            ),
+        )
+
 
 class UserIn(BaseModel):
     clerk_user_id: str = Field(..., min_length=1)

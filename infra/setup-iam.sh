@@ -42,6 +42,12 @@ COMPUTE_POLICIES=(
   "arn:aws:iam::aws:policy/AmazonEventBridgeFullAccess"
   "arn:aws:iam::aws:policy/AmazonS3FullAccess"
   "arn:aws:iam::aws:policy/CloudFrontFullAccess"
+  # Step Functions for sub-project #3 — states:CreateStateMachine,
+  # states:ValidateStateMachineDefinition, states:StartExecution, etc.
+  "arn:aws:iam::aws:policy/AWSStepFunctionsFullAccess"
+  # CloudWatch metric alarms for #3's cron failure / staleness alarms
+  # (CloudWatchLogsFullAccess in CORE only covers logs:*, not metrics).
+  "arn:aws:iam::aws:policy/CloudWatchFullAccess"
 )
 
 echo "== IAM setup =="

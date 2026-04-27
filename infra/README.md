@@ -245,3 +245,115 @@ scraper service.
   invoked yet, or the function name is wrong (must match `news-<agent>-dev`).
 - **Cold-start SSM read fails** — SSM params missing for the env. Re-run
   `make secrets-sync ENV=dev` (from sub-project #1).
+
+## Sub-project #3 — scheduler + orchestration
+
+A scheduler Lambda (`news-scheduler-dev`) plus two AWS Step Functions state
+machines that orchestrate the end-to-end pipeline:
+
+- **`news-cron-pipeline-dev`** — daily fan-out triggered by an EventBridge
+  rule at `cron(0 21 * * ? *)` (00:00 EAT). Steps: `TriggerScraper` (HTTP) →
+  poll `/runs/<id>` until terminal → `ListUnsummarised` → `DigestMap` →
+  `ListActiveUsers` → `EditorMap` → `ListNewDigests` → `EmailMap`. Maps run
+  with `ToleratedFailurePercentage=100` so per-item failures don't fail the
+  whole pipeline.
+- **`news-remix-user-dev`** — single-user "remix my digest now" — invokes
+  the editor Lambda for a given user, and if a new digest was generated,
+  invokes the email Lambda. Triggered manually (later wired to the web UI
+  in sub-project #4).
+
+The scheduler Lambda itself is dispatched by `event["op"]` to one of three
+list handlers (`list_unsummarised`, `list_active_users`, `list_new_digests`)
+that read directly from the database.
+
+### One-time IAM extension
+
+Sub-project #3 adds `AWSStepFunctionsFullAccess` and `CloudWatchFullAccess`
+to the `NewsAggregatorComputeAccess` group. If you bootstrapped before April
+2026, re-run:
+
+```sh
+ADMIN_PROFILE=patrickcmd ./infra/setup-iam.sh
+```
+
+### Per-module Terraform init
+
+```sh
+ACCT=$(aws sts get-caller-identity --profile aiengineer --query Account --output text)
+cd infra/scheduler
+terraform init \
+  -backend-config="bucket=news-aggregator-tf-state-$ACCT" \
+  -backend-config="key=scheduler/terraform.tfstate" \
+  -backend-config="region=us-east-1" \
+  -backend-config="profile=aiengineer"
+terraform workspace new dev   # or: terraform workspace select dev
+```
+
+### Deploy
+
+`services/scheduler/deploy.py` builds the zip (via `package_docker.py`),
+uploads to S3, reads the scraper's HTTPS endpoint from
+`infra/scraper`'s Terraform output, then runs `terraform apply`:
+
+```sh
+make scheduler-deploy
+```
+
+First apply creates ~13 resources: Lambda + IAM role + 2 SFN state machines
+(with their IAM roles, log groups, EventBridge connection) + EventBridge
+cron rule + 2 CloudWatch alarms (`cron-failed`, `cron-stale-36h`).
+
+### Invoke + monitor
+
+```sh
+make cron-invoke                              # one-off cron run
+make cron-history                             # last 5 executions
+make cron-describe NAME=<exec-name>           # full state-by-state trace
+
+make remix-invoke USER_ID=<uuid> LOOKBACK=24  # send my digest now
+make remix-history
+
+make scheduler-logs SINCE=10m                 # scheduler Lambda logs
+make scheduler-logs-follow
+
+# Local CLI (talks to DB directly, no Lambda):
+make scheduler-list-unsummarised LOOKBACK=24
+make scheduler-list-active-users
+make scheduler-list-new-digests
+```
+
+### Failure modes
+
+- **`Events.ConnectionResource.AccessDenied`** on `TriggerScraper` — the
+  cron state machine's IAM role is missing `secretsmanager:DescribeSecret`
+  (or `:GetSecretValue`) on the EventBridge Connection's auto-created
+  secret. Both are required.
+- **`States.Http.StatusCode.422`** on `TriggerScraper` — the ASL's request
+  body doesn't match the scraper's `IngestRequest` schema. The `trigger`
+  field must be one of `api|cli|scheduler` (the cron pipeline sends
+  `"scheduler"`).
+- **`RuntimeError: ... attached to a different loop`** in any Lambda — a
+  warm-start container has a cached SQLAlchemy engine bound to a previous
+  event loop. The handlers call `news_db.engine.reset_engine()` at the top
+  of every invocation; if you add a new Lambda, do the same.
+- **`ListActiveUsers` returns `[]`** — no users have `profile_completed_at
+  IS NOT NULL`. In dev, re-run `make seed`; in prod, this is set by the
+  Clerk-driven onboarding flow (sub-project #4).
+- **`ScraperPollTimeout`** — scraper run did not reach `success`/`partial`/
+  `failed` within `scraper_poll_max_iterations × 30s` (default 30 min).
+  Investigate the scraper directly: `make scraper-logs SINCE=30m`.
+
+### Roll back
+
+The cron + remix state-machine definitions live in
+`infra/scheduler/templates/*.asl.json` — to roll back a definition change,
+revert the file and `terraform apply` (no zip upload needed). To roll back
+the Lambda code, follow the same pattern as sub-project #2:
+
+```sh
+cd infra/scheduler
+terraform apply \
+  -var=zip_s3_key=scheduler/<previous-sha>.zip \
+  -var=zip_sha256=<previous-base64-sha256> \
+  -var=scraper_base_url=https://$(cd ../scraper && terraform output -raw scraper_endpoint)
+```

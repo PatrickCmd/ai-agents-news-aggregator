@@ -21,6 +21,11 @@ variable "zip_sha256" {
 variable "scraper_base_url" {
   description = "HTTPS endpoint of the scraper service (terraform output -raw scraper_endpoint from infra/scraper/)"
   type        = string
+
+  validation {
+    condition     = can(regex("^https://[A-Za-z0-9.-]+(:[0-9]+)?(/[A-Za-z0-9._~/-]*)?$", var.scraper_base_url))
+    error_message = "scraper_base_url must be HTTPS with no special characters (single quotes would break States.Format)."
+  }
 }
 
 variable "memory_size" {

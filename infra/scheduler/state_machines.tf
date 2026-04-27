@@ -47,7 +47,13 @@ resource "aws_iam_role_policy" "cron_sm_invoke" {
         Resource = "arn:aws:states:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:stateMachine:news-cron-pipeline-${terraform.workspace}"
         Condition = {
           StringEquals = {
-            "states:HTTPMethod" : ["GET", "POST"]
+            "states:HTTPMethod" = ["GET", "POST"]
+          }
+          StringLike = {
+            "states:HTTPEndpoint" = [
+              "${var.scraper_base_url}/ingest",
+              "${var.scraper_base_url}/runs/*",
+            ]
           }
         }
       },
@@ -58,7 +64,7 @@ resource "aws_iam_role_policy" "cron_sm_invoke" {
       },
       {
         Effect   = "Allow"
-        Action   = ["secretsmanager:GetSecretValue", "secretsmanager:DescribeSecret"]
+        Action   = "secretsmanager:GetSecretValue"
         Resource = aws_cloudwatch_event_connection.scraper.secret_arn
       },
       {
@@ -94,15 +100,16 @@ resource "aws_sfn_state_machine" "cron" {
   role_arn = aws_iam_role.cron_sm.arn
   type     = "STANDARD"
   definition = templatefile("${path.module}/templates/cron_pipeline.asl.json", {
-    scraper_base_url       = var.scraper_base_url
-    scraper_connection_arn = aws_cloudwatch_event_connection.scraper.arn
-    scheduler_lambda_arn   = aws_lambda_function.this.arn
-    news_digest_arn        = "arn:aws:lambda:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:function:news-digest-${terraform.workspace}"
-    news_editor_arn        = "arn:aws:lambda:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:function:news-editor-${terraform.workspace}"
-    news_email_arn         = "arn:aws:lambda:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:function:news-email-${terraform.workspace}"
-    digest_max_concurrency = var.digest_max_concurrency
-    editor_max_concurrency = var.editor_max_concurrency
-    email_max_concurrency  = var.email_max_concurrency
+    scraper_base_url            = var.scraper_base_url
+    scraper_connection_arn      = aws_cloudwatch_event_connection.scraper.arn
+    scheduler_lambda_arn        = aws_lambda_function.this.arn
+    news_digest_arn             = "arn:aws:lambda:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:function:news-digest-${terraform.workspace}"
+    news_editor_arn             = "arn:aws:lambda:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:function:news-editor-${terraform.workspace}"
+    news_email_arn              = "arn:aws:lambda:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:function:news-email-${terraform.workspace}"
+    digest_max_concurrency      = var.digest_max_concurrency
+    editor_max_concurrency      = var.editor_max_concurrency
+    email_max_concurrency       = var.email_max_concurrency
+    scraper_poll_max_iterations = var.scraper_poll_max_iterations
   })
 
   logging_configuration {

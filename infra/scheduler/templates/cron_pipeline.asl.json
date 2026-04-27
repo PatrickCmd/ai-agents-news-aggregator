@@ -13,7 +13,7 @@
         },
         "RequestBody": {
           "lookback_hours": 24,
-          "trigger": "scheduler"
+          "trigger": "cron"
         }
       },
       "ResultPath": "$.scraper_start",
@@ -26,6 +26,12 @@
           "JitterStrategy": "FULL"
         }
       ],
+      "Next": "InitPollCount"
+    },
+    "InitPollCount": {
+      "Type": "Pass",
+      "Result": 0,
+      "ResultPath": "$.poll_count",
       "Next": "WaitForScraper"
     },
     "WaitForScraper": {
@@ -52,11 +58,26 @@
           "BackoffRate": 2.0
         }
       ],
+      "Next": "IncrementPollCount"
+    },
+    "IncrementPollCount": {
+      "Type": "Pass",
+      "Parameters": {
+        "poll_count.$": "States.MathAdd($.poll_count, 1)",
+        "scraper_start.$": "$.scraper_start",
+        "scraper_run.$": "$.scraper_run"
+      },
+      "ResultPath": "$",
       "Next": "ScraperDone"
     },
     "ScraperDone": {
       "Type": "Choice",
       "Choices": [
+        {
+          "Variable": "$.poll_count",
+          "NumericGreaterThan": ${scraper_poll_max_iterations},
+          "Next": "ScraperPollTimeout"
+        },
         {
           "Variable": "$.scraper_run.ResponseBody.status",
           "StringEquals": "success",
@@ -79,6 +100,11 @@
       "Type": "Fail",
       "Error": "ScraperRunFailed",
       "Cause": "Scraper reported status=failed"
+    },
+    "ScraperPollTimeout": {
+      "Type": "Fail",
+      "Error": "ScraperPollTimeout",
+      "Cause": "Scraper run did not reach terminal status before iteration cap"
     },
     "ListUnsummarised": {
       "Type": "Task",

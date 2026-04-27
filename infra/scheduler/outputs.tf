@@ -12,3 +12,8 @@ output "remix_state_machine_arn" {
   description = "ARN of the remix-user state machine (REQUIRED by #4 — its API Lambda will StartExecution on this)"
   value       = aws_sfn_state_machine.remix.arn
 }
+
+output "scheduler_lambda_arn" {
+  description = "Alias for function_arn — name #4's API Lambda will read via remote state"
+  value       = aws_lambda_function.this.arn
+}

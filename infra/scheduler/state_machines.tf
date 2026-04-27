@@ -63,8 +63,15 @@ resource "aws_iam_role_policy" "cron_sm_invoke" {
         Resource = aws_cloudwatch_event_connection.scraper.arn
       },
       {
-        Effect   = "Allow"
-        Action   = "secretsmanager:GetSecretValue"
+        # Step Functions HTTP-invoke fetches the EventBridge Connection's auth
+        # credential from Secrets Manager, which requires *both* DescribeSecret
+        # and GetSecretValue on the connection's secret. Granting only one
+        # surfaces as Events.ConnectionResource.AccessDenied at runtime.
+        Effect = "Allow"
+        Action = [
+          "secretsmanager:DescribeSecret",
+          "secretsmanager:GetSecretValue",
+        ]
         Resource = aws_cloudwatch_event_connection.scraper.secret_arn
       },
       {

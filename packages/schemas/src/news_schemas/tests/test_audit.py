@@ -25,3 +25,10 @@ def test_audit_log_in_allows_null_user():
         metadata={},
     )
     assert a.user_id is None
+
+
+def test_audit_enum_extensions_for_api():
+    # The API sub-project (#4) introduces these.
+    assert AgentName.API.value == "api"
+    assert DecisionType.PROFILE_UPDATE.value == "profile_update"
+    assert DecisionType.REMIX_TRIGGERED.value == "remix_triggered"

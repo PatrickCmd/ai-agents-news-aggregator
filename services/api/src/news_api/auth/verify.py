@@ -8,6 +8,8 @@ Exposes:
 
 from __future__ import annotations
 
+import jwt
+from cryptography.hazmat.primitives.asymmetric.rsa import RSAPublicKey
 from pydantic import BaseModel, ConfigDict, EmailStr
 
 
@@ -32,3 +34,37 @@ class ClerkClaims(BaseModel):
     iat: int
     iss: str
     azp: str | None = None
+
+
+def verify_clerk_jwt(
+    token: str,
+    jwks: dict[str, RSAPublicKey],
+    issuer: str,
+    audience: str | None,
+) -> ClerkClaims:
+    """Validate a Clerk-issued JWT.
+
+    Args:
+        token: The raw JWT string from the `Authorization: Bearer <token>` header.
+        jwks: Map of `kid` → RSA public key, populated by `auth.jwks.get_jwks`.
+        issuer: Expected `iss` claim — must match exactly.
+        audience: Expected `aud` claim, or `None` to skip validation.
+
+    Raises:
+        InvalidKid: The token's kid header is not in the JWKS.
+        jwt.InvalidTokenError (and subclasses): signature, issuer, audience,
+            or expiration check failed.
+    """
+    headers = jwt.get_unverified_header(token)
+    kid = headers.get("kid")
+    if kid is None or kid not in jwks:
+        raise InvalidKid(f"kid {kid!r} not in JWKS")
+    payload = jwt.decode(
+        token,
+        jwks[kid],
+        algorithms=["RS256"],  # whitelist defeats algorithm-confusion attacks
+        issuer=issuer,
+        audience=audience,
+        options={"require": ["exp", "iat", "iss", "sub"]},
+    )
+    return ClerkClaims.model_validate(payload)

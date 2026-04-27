@@ -69,3 +69,26 @@ def test_user_out_round_trip():
         updated_at=now,
     )
     assert u.clerk_user_id == "x"
+
+
+def test_user_profile_empty_returns_validatable_instance():
+    profile = UserProfile.empty()
+
+    # All list fields are empty.
+    assert profile.background == []
+    assert profile.interests.primary == []
+    assert profile.interests.secondary == []
+    assert profile.interests.specific_topics == []
+    assert profile.preferences.content_type == []
+    assert profile.preferences.avoid == []
+    assert profile.goals == []
+
+    # ReadingTime has benign defaults (string fields are required by the schema).
+    assert profile.reading_time.daily_limit == "30 minutes"
+    assert profile.reading_time.preferred_article_count == "10"
+
+
+def test_user_profile_empty_round_trips_through_json():
+    profile = UserProfile.empty()
+    rebuilt = UserProfile.model_validate(profile.model_dump(mode="json"))
+    assert rebuilt == profile

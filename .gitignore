@@ -31,3 +31,5 @@ services/agents/*/dist/
 services/agents/*/.package.Dockerfile
 services/scheduler/dist/
 services/scheduler/.package.Dockerfile
+services/api/dist/
+services/api/.package.Dockerfile

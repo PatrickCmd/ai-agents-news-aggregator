@@ -12,6 +12,7 @@ class AgentName(StrEnum):
     EDITOR = "editor_agent"
     EMAIL = "email_agent"
     WEB_SEARCH = "web_search_agent"
+    API = "api"
 
 
 class DecisionType(StrEnum):
@@ -19,6 +20,8 @@ class DecisionType(StrEnum):
     RANK = "rank"
     INTRO = "intro"
     SEARCH_RESULT = "search_result"
+    PROFILE_UPDATE = "profile_update"
+    REMIX_TRIGGERED = "remix_triggered"
 
 
 class AuditLogIn(BaseModel):

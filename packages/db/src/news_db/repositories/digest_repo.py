@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from news_schemas.digest import DigestIn, DigestOut, DigestStatus
+from news_schemas.digest import DigestIn, DigestOut, DigestStatus, DigestSummaryOut
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -55,6 +55,25 @@ class DigestRepository:
     async def get_by_id(self, digest_id: int) -> DigestOut | None:
         row = await self._session.get(Digest, digest_id)
         return DigestOut.model_validate(row, from_attributes=True) if row else None
+
+    async def get_for_user(
+        self,
+        user_id: UUID,
+        limit: int,
+        before: int | None = None,
+    ) -> list[DigestSummaryOut]:
+        """Cursor-paginated list of a user's digests, newest first.
+
+        `before` is exclusive — pass the id of the last item from the previous
+        page (or None for the first page). Excludes `ranked_articles` from the
+        projection (see DigestSummaryOut).
+        """
+        stmt = select(Digest).where(Digest.user_id == user_id)
+        if before is not None:
+            stmt = stmt.where(Digest.id < before)
+        stmt = stmt.order_by(Digest.id.desc()).limit(limit)
+        rows = (await self._session.execute(stmt)).scalars().all()
+        return [DigestSummaryOut.model_validate(r, from_attributes=True) for r in rows]
 
     async def list_generated_today(self) -> list[int]:
         """Digest IDs created today (UTC) with status=GENERATED.

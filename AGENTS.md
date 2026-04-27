@@ -16,7 +16,7 @@ The system is broken into seven independent sub-projects. Each has its own brain
 | **1** | Ingestion pipeline (ECS Express service): RSS + YouTube + Playwright web-search, plus per-sub-project Terraform under `infra/scraper/` | shipped — tag `ingestion-v0.2.1` |
 | **2** | Digest + Editor + Email agents (Lambda chain) — Lambda zips on S3, per-agent Terraform under `infra/{digest,editor,email}/` | shipped — tag `agents-v0.3.0` |
 | **3** | Scheduler + orchestration — `news_scheduler` Lambda + 2 Step Functions state machines (cron pipeline + remix-user), EventBridge cron at 21:00 UTC, per-sub-project Terraform under `infra/scheduler/` | shipped — tag `scheduler-v0.4.0` |
-| 4 | API + Auth (FastAPI on Lambda, Clerk JWT) | not started |
+| **4** | API + Auth — `news-api` Lambda + API Gateway HTTP API + Clerk JWT (FastAPI dep, lazy upsert), per-sub-project Terraform under `infra/api/` | shipped — tag `api-v0.5.0` |
 | 5 | Frontend (Next.js + Clerk + S3/CloudFront) | not started |
 | 6 | CI/CD pipelines + cross-sub-project ops (per-sub-project Terraform is owned by each sub-project, not #6) | not started |
 
@@ -42,7 +42,7 @@ ai-agent-news-aggregator/
 │   │       └── cli.py              # Typer CLI
 │   ├── agents/                     # Lambda — digest, editor, email (#2)
 │   ├── scheduler/                  # Lambda — list_unsummarised / list_active_users / list_new_digests (#3)
-│   └── api/                        # Lambda — FastAPI + Clerk (#4)
+│   └── api/                        # Lambda — FastAPI on Mangum + Clerk JWT + remix trigger (#4)
 ├── infra/                          # per-sub-project Terraform modules + bootstrap
 │   ├── README.md                   # apply order, recovery, day-to-day ops
 │   ├── bootstrap/                  # one-time S3 + DynamoDB state backend
@@ -52,6 +52,7 @@ ai-agent-news-aggregator/
 │   │   └── sync_secrets.py         # push .env into SSM SecureString
 │   ├── {digest,editor,email}/      # per-agent Lambda + IAM (#2)
 │   ├── scheduler/                  # scheduler Lambda + 2 SFN state machines + EventBridge cron + alarms (#3)
+│   ├── api/                        # FastAPI Lambda + API Gateway HTTP API + IAM (#4)
 │   └── setup-iam.sh                # one-time NewsAggregator{Core,Compute}Access groups
 ├── web/                            # Next.js frontend (#5)
 ├── scripts/                        # dev utilities (reset_db.py, seed_user.py)
@@ -272,6 +273,39 @@ See `infra/README.md` § "Sub-project #3 — scheduler" for failure modes
 asyncio-loop drift, empty `list_active_users`, `ScraperPollTimeout`) and
 rollback recipe.
 
+### Sub-project #4 (API) — operational commands
+
+A `news-api-dev` Lambda behind an API Gateway HTTP API. FastAPI app
+served via Mangum; Clerk JWT validated in a FastAPI dependency
+(`get_current_user`); lazy-upserts users on first call; triggers the
+remix state machine (#3) for on-demand digest re-runs.
+
+```sh
+# Local dev
+make api-serve                                # uvicorn http://localhost:8000
+
+# AWS deploy (requires CLERK_ISSUER in env)
+export CLERK_ISSUER=https://<clerk-frontend-api>
+make api-deploy
+
+# Smoke
+make api-invoke                               # /v1/healthz
+make api-test-me JWT=<real-clerk-jwt>         # /v1/me
+
+# Logs
+make api-logs SINCE=10m
+make api-logs-follow
+```
+
+The API reads SSM SecureStrings at cold-start (same `/news-aggregator/<env>/*`
+tree as #1-#3). It additionally reads `CLERK_ISSUER` and the remix state
+machine ARN as Lambda env vars (set by Terraform via
+`terraform_remote_state.scheduler`) — neither is secret.
+
+See `infra/README.md` § "Sub-project #4 — API + Auth" for full
+lifecycle, IAM scope (deliberately narrow — only `states:StartExecution`
+on the exact remix ARN), and rollback recipe.
+
 ## What NOT to do
 
 Anti-patterns that will break invariants in this repo. Reject these on review:
@@ -299,6 +333,12 @@ Anti-patterns that will break invariants in this repo. Reject these on review:
 - Do not omit `news_db.engine.reset_engine()` at the top of any Lambda handler that uses SQLAlchemy. The engine + connection pool are process-level singletons; warm-start container reuse keeps connections bound to a previous (closed) event loop, causing `RuntimeError: ... attached to a different loop` on the next `asyncio.run(...)`. All four current Lambdas (`scheduler`, `digest`, `editor`, `email`) call it; new Lambdas must too.
 - Do not assume Step Functions' `arn:aws:states:::http:invoke` only needs `events:RetrieveConnectionCredentials` on the connection. It also needs **both** `secretsmanager:DescribeSecret` AND `secretsmanager:GetSecretValue` on the connection's auto-created secret. Granting one without the other surfaces as `Events.ConnectionResource.AccessDenied`.
 - Do not change the scraper's `IngestRequest.trigger` enum without checking who calls `/ingest`. Today the cron pipeline sends `"scheduler"` (per `^(api|cli|scheduler)$`). Adding/removing values requires a coordinated rev across `services/scraper/api/routes.py` and `infra/scheduler/templates/cron_pipeline.asl.json`.
+- Do not ship a `DEV_AUTH_BYPASS=1` flag on the API. The auth flow is well-trodden enough that minting a Clerk dashboard JWT for local curl is not real friction; bypass flags are a reliability liability (easy to leave on, easy to misconfigure in prod).
+- Do not grant `states:DescribeExecution` or `states:ListExecutions` to the API Lambda's role. The frontend re-fetches `/v1/digests` to observe remix completion; proxying execution status would just be a latency tax and a wider IAM blast radius.
+- Do not store `clerk_publishable_key` in SSM. It is, by definition, public — it lives in the Next.js frontend's env file (#5), never in the backend.
+- Do not skip the algorithm whitelist when calling `pyjwt.decode`. Hard-coding `algorithms=["RS256"]` defeats the algorithm-confusion attack class (HS256 token forged with the public key as a shared secret).
+- Do not call `boto3` directly from a route handler. Wrap it in `services/api/src/news_api/clients/<service>.py` so the dependency direction is `routes → clients → boto3`, and the only `import boto3` lives in one focused file.
+- Do not validate JWTs at API Gateway via the `aws_apigatewayv2_authorizer` JWT integration. The lazy-upsert flow needs claims inside the handler anyway, so we'd validate twice; the FastAPI dep is the single source of truth.
 
 ## Security
 

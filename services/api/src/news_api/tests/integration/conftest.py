@@ -11,8 +11,12 @@ when get_current_user arrives.
 
 from __future__ import annotations
 
+import time
+
+import jwt as pyjwt
 import pytest
 import pytest_asyncio
+from cryptography.hazmat.primitives.asymmetric import rsa
 from httpx import ASGITransport, AsyncClient
 from testcontainers.postgres import PostgresContainer
 
@@ -44,3 +48,63 @@ async def api_client(api_settings_env, pg_container: PostgresContainer):
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
         yield c
     engine_module.reset_engine()
+
+
+@pytest.fixture(scope="session")
+def jwt_keypair():
+    """One RSA keypair per test session — used to sign tokens locally."""
+    privkey = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    return privkey, privkey.public_key()
+
+
+@pytest.fixture(autouse=True)
+def patch_jwks(monkeypatch, jwt_keypair):
+    """Replace the JWKS fetcher to return the test public key."""
+    _, pubkey = jwt_keypair
+
+    async def _fake_get_jwks(*_args, **_kwargs):
+        return {"test-key-1": pubkey}
+
+    from news_api.auth import jwks as jwks_module
+
+    monkeypatch.setattr(jwks_module, "get_jwks", _fake_get_jwks)
+    jwks_module.reset_jwks()
+
+
+@pytest.fixture
+def signed_jwt(jwt_keypair):
+    privkey, _ = jwt_keypair
+
+    def _sign(
+        *,
+        sub: str,
+        email: str,
+        name: str = "Test User",
+        issuer: str = "https://test.clerk.dev",
+        expires_in: int = 600,
+    ) -> str:
+        return pyjwt.encode(
+            {
+                "sub": sub,
+                "email": email,
+                "name": name,
+                "iat": int(time.time()),
+                "exp": int(time.time()) + expires_in,
+                "iss": issuer,
+            },
+            privkey,
+            algorithm="RS256",
+            headers={"kid": "test-key-1"},
+        )
+
+    return _sign
+
+
+@pytest.fixture
+def auth_header(signed_jwt):
+    """Convenience: returns a function that produces an Authorization header dict."""
+
+    def _header(*, sub: str, email: str = "alice@example.com", name: str = "Alice") -> dict:
+        return {"Authorization": f"Bearer {signed_jwt(sub=sub, email=email, name=name)}"}
+
+    return _header

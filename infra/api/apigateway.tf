@@ -15,7 +15,7 @@ resource "aws_apigatewayv2_api" "api" {
 
 resource "aws_cloudwatch_log_group" "api_access" {
   name              = "/aws/apigateway/news-api-${terraform.workspace}"
-  retention_in_days = var.log_retention_days
+  retention_in_days = terraform.workspace == "prod" ? 90 : 30
 }
 
 resource "aws_apigatewayv2_stage" "default" {
@@ -78,6 +78,7 @@ resource "aws_cloudwatch_metric_alarm" "api_5xx" {
   threshold           = 5
   alarm_description   = "≥5 5XX responses from news-api in 5 min"
   treat_missing_data  = "notBreaching"
+  alarm_actions       = [data.aws_ssm_parameter.alerts_arn.value]
 
   dimensions = {
     ApiId = aws_apigatewayv2_api.api.id

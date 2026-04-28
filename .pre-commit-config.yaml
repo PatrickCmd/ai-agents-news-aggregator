@@ -41,7 +41,7 @@ repos:
     hooks:
       - id: osv-scanner-web
         name: OSV-Scanner (web/)
-        entry: "bash -c 'osv-scanner scan source --recursive web/ || (echo \"OSV-Scanner found vulnerabilities. Install if needed: brew install osv-scanner\"; exit 1)'"
+        entry: "bash -c 'command -v osv-scanner >/dev/null || { echo \"skipping OSV-Scanner (not installed; brew install osv-scanner to enable)\"; exit 0; }; osv-scanner scan source --recursive web/'"
         language: system
         files: ^web/
         pass_filenames: false

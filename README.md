@@ -990,12 +990,9 @@ spec but matter in production. The biggest ones from this project:
 
 ## Roadmap
 
-| Sub-project | Status | Next milestone |
-|---|---|---|
-| #4 — API + Auth | not started | Clerk-driven onboarding flow + `/digests` endpoints + `/remix` endpoint that triggers `news-remix-user-dev` |
-| #5 — Frontend | not started | Next.js 15 + Clerk + S3/CloudFront, profile editor, digest history, "remix now" button |
+All seven sub-projects (#0–#6) have shipped — see [Project Status](#project-status) for the current tag per sub-project.
 
-Stretch goals once the seven sub-projects ship:
+Stretch goals beyond the initial seven:
 
 - **Multi-tenant SaaS** — Clerk Organisations, per-org sources, pricing tiers.
 - **Per-user source weights** — instead of a global `sources.yml`, each

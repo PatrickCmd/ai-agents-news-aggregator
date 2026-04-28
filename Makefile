@@ -442,3 +442,60 @@ api-logs-follow:            ## follow api Lambda logs in real time
 tag-api:                    ## tag sub-project #4
 	git tag -f -a api-v0.5.0 -m "Sub-project #4 API + Auth"
 	@echo "Push with: git push origin api-v0.5.0"
+
+# ---------- web (#5) ----------
+
+.PHONY: web-install web-dev web-build web-test web-test-watch web-lint \
+        web-typecheck web-osv \
+        web-deploy-dev web-deploy-test web-deploy-prod \
+        web-destroy-dev web-destroy-test web-destroy-prod \
+        tag-web
+
+web-install:                ## install pnpm deps (--ignore-scripts)
+	cd web && pnpm install --frozen-lockfile --ignore-scripts
+
+web-dev:                    ## run Next.js dev server (port 3000)
+	cd web && pnpm dev
+
+web-build:                  ## next build (static export → web/out/)
+	cd web && pnpm build
+
+web-test:                   ## vitest run (one-shot)
+	cd web && pnpm test
+
+web-test-watch:             ## vitest watch
+	cd web && pnpm test:watch
+
+web-lint:                   ## eslint check
+	cd web && pnpm lint
+
+web-typecheck:              ## tsc --noEmit
+	cd web && pnpm typecheck
+
+web-osv:                    ## OSV-Scanner against web/
+	osv-scanner --recursive --fail-on-vuln web/
+
+web-deploy-dev:             ## trigger web-deploy.yml for dev (gh CLI)
+	gh workflow run web-deploy.yml -f environment=dev -f action=deploy
+
+web-deploy-test:            ## trigger web-deploy.yml for test
+	gh workflow run web-deploy.yml -f environment=test -f action=deploy
+
+web-deploy-prod:            ## trigger web-deploy.yml for prod (requires reviewer)
+	gh workflow run web-deploy.yml -f environment=prod -f action=deploy
+
+web-destroy-dev:            ## DESTRUCTIVE: tear down dev infra
+	@read -p "Type 'destroy-dev' to confirm: " c && [ "$$c" = "destroy-dev" ] || (echo aborted; exit 1)
+	gh workflow run web-deploy.yml -f environment=dev -f action=destroy
+
+web-destroy-test:           ## DESTRUCTIVE: tear down test infra
+	@read -p "Type 'destroy-test' to confirm: " c && [ "$$c" = "destroy-test" ] || (echo aborted; exit 1)
+	gh workflow run web-deploy.yml -f environment=test -f action=destroy
+
+web-destroy-prod:           ## DESTRUCTIVE: tear down prod infra (use VERY carefully)
+	@read -p "Type 'destroy-prod' to confirm: " c && [ "$$c" = "destroy-prod" ] || (echo aborted; exit 1)
+	gh workflow run web-deploy.yml -f environment=prod -f action=destroy
+
+tag-web:                    ## tag sub-project #5
+	git tag -f -a frontend-v0.6.0 -m "Sub-project #5 Frontend (Next.js + Clerk + S3/CloudFront)"
+	@echo "Push with: git push origin frontend-v0.6.0"

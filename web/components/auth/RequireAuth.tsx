@@ -1,6 +1,6 @@
 "use client";
 
-import { RedirectToSignIn, useAuth } from "@clerk/clerk-react";
+import { RedirectToSignIn, useAuth } from "@clerk/react";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export function RequireAuth({ children }: { children: React.ReactNode }) {

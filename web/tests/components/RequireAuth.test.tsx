@@ -3,7 +3,7 @@ import { render, screen } from "@testing-library/react";
 
 describe("RequireAuth", () => {
   it("renders skeleton while !isLoaded", async () => {
-    vi.doMock("@clerk/clerk-react", () => ({
+    vi.doMock("@clerk/react", () => ({
       useAuth: () => ({ isLoaded: false, isSignedIn: false }),
       RedirectToSignIn: () => <div data-testid="redirect" />,
     }));
@@ -19,7 +19,7 @@ describe("RequireAuth", () => {
 
   it("renders <RedirectToSignIn> when loaded but not signed in", async () => {
     vi.resetModules();
-    vi.doMock("@clerk/clerk-react", () => ({
+    vi.doMock("@clerk/react", () => ({
       useAuth: () => ({ isLoaded: true, isSignedIn: false }),
       RedirectToSignIn: () => <div data-testid="redirect" />,
     }));
@@ -35,7 +35,7 @@ describe("RequireAuth", () => {
 
   it("renders children when signed in", async () => {
     vi.resetModules();
-    vi.doMock("@clerk/clerk-react", () => ({
+    vi.doMock("@clerk/react", () => ({
       useAuth: () => ({ isLoaded: true, isSignedIn: true }),
       RedirectToSignIn: () => null,
     }));

@@ -19,7 +19,7 @@ Object.defineProperty(window, "matchMedia", {
 });
 
 // Clerk: stub the SDK so tests never hit the real Clerk service.
-vi.mock("@clerk/clerk-react", () => ({
+vi.mock("@clerk/react", () => ({
   ClerkProvider: ({ children }: { children: React.ReactNode }) => children,
   useAuth: () => ({
     isLoaded: true,

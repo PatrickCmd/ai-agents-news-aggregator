@@ -1,0 +1,6 @@
+# subdomain: per-env hostname.
+# - prod:  digest.patrickcmd.dev
+# - test:  test-digest.patrickcmd.dev
+# - dev:   dev-digest.patrickcmd.dev
+subdomain   = "dev-digest.patrickcmd.dev"
+github_repo = "PatrickCmd/ai-agents-news-aggregator"

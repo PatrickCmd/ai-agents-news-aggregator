@@ -1,0 +1,112 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+/* Dark is the default. .light opts into light mode. We invert shadcn's
+   standard `dark:` variant so it fires by default (when html does NOT
+   have .light), and add a `light:` variant for the inverse. This keeps
+   pre-existing shadcn `dark:foo` overrides in components like
+   <Badge> firing on the dark default. */
+@custom-variant dark (&:where(html:not(.light), html:not(.light) *));
+@custom-variant light (&:where(html.light, html.light *));
+
+@theme inline {
+  --color-background: var(--bg);
+  --color-foreground: var(--ink);
+  --color-card: var(--surface);
+  --color-card-foreground: var(--ink);
+  --color-popover: var(--surface);
+  --color-popover-foreground: var(--ink);
+  --color-primary: var(--accent);
+  --color-primary-foreground: var(--accent-ink);
+  --color-secondary: var(--surface-2);
+  --color-secondary-foreground: var(--ink);
+  --color-muted: var(--surface-2);
+  --color-muted-foreground: var(--ink-dim);
+  --color-accent: var(--surface-2);
+  --color-accent-foreground: var(--ink);
+  --color-destructive: var(--danger);
+  --color-destructive-foreground: var(--ink);
+  --color-border: var(--rule);
+  --color-input: var(--rule);
+  --color-ring: var(--accent);
+
+  --font-display: var(--font-fraunces), ui-serif, Georgia, "Times New Roman", serif;
+  --font-sans: var(--font-geist), ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, "JetBrains Mono", "Menlo", monospace;
+
+  --radius: 0.5rem;
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+:root {
+  color-scheme: dark;
+  --bg: oklch(0.16 0.012 245);
+  --surface: oklch(0.20 0.014 245);
+  --surface-2: oklch(0.23 0.014 245);
+  --ink: oklch(0.96 0.018 80);
+  --ink-dim: oklch(0.66 0.012 80);
+  --rule: oklch(0.30 0.012 245);
+  --accent: oklch(0.78 0.16 65);
+  --accent-ink: oklch(0.18 0.020 65);
+  --danger: oklch(0.65 0.20 25);
+}
+
+.light {
+  color-scheme: light;
+  --bg: oklch(0.98 0.006 80);
+  --surface: oklch(0.96 0.008 80);
+  --surface-2: oklch(0.93 0.010 80);
+  --ink: oklch(0.18 0.012 245);
+  --ink-dim: oklch(0.42 0.010 245);
+  --rule: oklch(0.86 0.010 245);
+  --accent: oklch(0.62 0.18 65);
+  --accent-ink: oklch(0.18 0.020 65); /* dark text on amber — passes AA */
+  --danger: oklch(0.55 0.20 25);
+}
+
+@layer base {
+  * {
+    border-color: var(--color-border);
+    outline-color: color-mix(in oklch, var(--color-ring) 50%, transparent);
+  }
+  html {
+    font-family: var(--font-sans);
+  }
+  body {
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+    font-feature-settings: "ss01", "cv11";
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  h1, h2, h3, h4 {
+    font-family: var(--font-display);
+    letter-spacing: -0.02em;
+    font-weight: 600;
+  }
+  /* Mono utility for any tabular metadata. */
+  .font-mono, code, kbd, samp, pre {
+    font-family: var(--font-mono);
+    font-feature-settings: "ss02", "cv02";
+  }
+}
+
+@layer utilities {
+  .container {
+    width: 100%;
+    margin-inline: auto;
+    padding-inline: 1.25rem;
+    max-width: 72rem;
+  }
+  @media (min-width: 768px) {
+    .container { padding-inline: 2rem; }
+  }
+  .text-balance { text-wrap: balance; }
+  .text-pretty { text-wrap: pretty; }
+}

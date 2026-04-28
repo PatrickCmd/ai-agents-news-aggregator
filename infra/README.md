@@ -472,3 +472,126 @@ cd infra/api
 terraform destroy -var=zip_s3_key=anything -var=zip_sha256=anything \
   -var=git_sha=anything -var=clerk_issuer=https://placeholder.example.com
 ```
+
+## Sub-project #5 — Frontend (Next.js + Clerk + S3/CloudFront)
+
+A static-exported Next.js app served from CloudFront, fronted by ACM cert
+on `*.patrickcmd.dev`, with one CloudFront distribution + S3 bucket per
+environment (dev/test/prod). Auth via Clerk's hosted Account Portal;
+data via the API shipped in #4.
+
+### Prerequisites (one-time)
+
+1. **GitHub Actions OIDC provider** in the AWS account — created in
+   `infra/bootstrap/`. Re-apply bootstrap if it doesn't exist:
+   ```sh
+   cd infra/bootstrap && terraform apply
+   ```
+
+2. **ACM wildcard cert** `*.patrickcmd.dev` in us-east-1 (existing).
+   Verify:
+   ```sh
+   aws acm list-certificates --region us-east-1 --profile aiengineer \
+     --query 'CertificateSummaryList[].DomainName' --output text
+   ```
+
+3. **Route 53 hosted zone** for `patrickcmd.dev` (existing).
+
+4. **GitHub Environments** — `dev`, `test`, `prod` set up under repo
+   Settings → Environments. Each gets vars + secrets (see "GitHub
+   Environment configuration" below).
+
+### Per-module Terraform init + apply
+
+Per-environment:
+
+```sh
+ACCT=$(aws sts get-caller-identity --profile aiengineer --query Account --output text)
+cd infra/web
+terraform init \
+  -backend-config="bucket=news-aggregator-tf-state-$ACCT" \
+  -backend-config="key=web/terraform.tfstate" \
+  -backend-config="region=us-east-1" \
+  -backend-config="profile=aiengineer"
+
+# For dev (repeat for test, prod with the matching subdomain):
+terraform workspace new dev
+terraform apply \
+  -var=subdomain=dev-digest.patrickcmd.dev \
+  -var=github_repo=PatrickCmd/ai-agents-news-aggregator
+```
+
+First apply creates ~10 resources: S3 bucket + 3 sub-resources +
+bucket policy + CloudFront + OAC + 2 Route 53 records + GitHub OIDC
+IAM role + policy.
+
+### GitHub Environment configuration
+
+Per env, set (via GitHub Settings → Environments → `<env>`):
+
+**Vars (non-secret):**
+- `AWS_DEPLOY_ROLE_ARN` — Terraform output `gh_actions_role_arn`
+- `AWS_ACCOUNT_ID` — your AWS account ID
+- `NEXT_PUBLIC_API_URL` — backend API base URL for that env
+- `S3_BUCKET` — Terraform output `bucket_name`
+- `CLOUDFRONT_DISTRIBUTION_ID` — Terraform output `distribution_id`
+- `SUBDOMAIN` — full subdomain for that env
+
+**Secrets:**
+- `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` — from Clerk Dashboard
+
+**Required reviewers:** add at least one for `prod`. Skip for dev/test.
+
+### Deploy + destroy
+
+```sh
+make web-deploy-dev          # workflow_dispatch → deploy to dev
+make web-deploy-test
+make web-deploy-prod         # gated by reviewer
+
+make web-destroy-dev         # workflow_dispatch → terraform destroy dev
+make web-destroy-test
+make web-destroy-prod        # use VERY carefully
+```
+
+### Failure modes
+
+- **Build fails: `process is not defined`** — used a Node-only API in a
+  client component. Audit imports; only browser-safe code allowed in
+  static export.
+- **Deploy succeeds but page returns 403** — bucket policy missing or
+  OAC not bound. Re-apply Terraform.
+- **CloudFront serves stale HTML after deploy** — invalidation didn't
+  fire. Manually: `aws cloudfront create-invalidation --distribution-id
+  <id> --paths '/*' --profile aiengineer`.
+- **`401 invalid token` from API on every request** — `NEXT_PUBLIC_API_URL`
+  env var doesn't match the deployed API's `CLERK_ISSUER`. Or the
+  Clerk publishable key is for a different instance than the API expects.
+- **`Cannot read 'getToken' of undefined`** — `<ClerkProvider>` not
+  rendered above the consuming component. Check `app/providers.tsx`.
+- **JWT template missing email/name claims** — frontend uses
+  `getToken({ template: "news-api" })`. The template must exist in
+  Clerk Dashboard → JWT Templates with email + name claims (same
+  template the backend's smoke uses — see #4 spec §3).
+- **Workflow fails with `AssumeRoleWithWebIdentity` AccessDenied** —
+  the job is missing `environment: <name>` at the job level. The OIDC
+  IAM role's sub-claim restricts AssumeRole to
+  `repo:<owner>/<name>:environment:{env}` — without the key it fails.
+
+### Roll back
+
+To roll back the static bundle:
+
+```sh
+# S3 versioning is enabled on the bucket; restore prior versions via:
+aws s3api list-object-versions --bucket digest-dev-dev-digest-patrickcmd-dev \
+  --profile aiengineer
+
+# Promote a prior version manually, then invalidate CloudFront.
+```
+
+To destroy a single env entirely (keeps Route 53 zone, ACM cert, OIDC provider):
+
+```sh
+make web-destroy-dev
+```

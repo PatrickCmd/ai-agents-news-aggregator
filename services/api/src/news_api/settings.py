@@ -21,8 +21,13 @@ class ApiSettings(BaseSettings):
         description="Where to fetch Clerk's signing keys.",
     )
     remix_state_machine_arn: str = Field(
-        ...,
-        description="ARN of news-remix-user state machine (from #3).",
+        default="",
+        description=(
+            "ARN of news-remix-user state machine (from #3). Required at runtime "
+            "for POST /v1/remix; the route raises 503 if empty. Optional in env "
+            "so local dev (`make api-serve`) starts without AWS access — the "
+            "deployed Lambda gets it stamped by Terraform."
+        ),
     )
     allowed_origins: Annotated[list[str], NoDecode] = Field(
         default_factory=lambda: ["http://localhost:3000"],

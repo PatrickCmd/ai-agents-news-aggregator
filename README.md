@@ -11,6 +11,7 @@
 [![Agents](https://img.shields.io/badge/sub--project%20%232-agents--v0.3.0-success)](https://github.com/PatrickCmd/ai-agents-news-aggregator/releases/tag/agents-v0.3.0)
 [![Scheduler](https://img.shields.io/badge/sub--project%20%233-scheduler--v0.4.0-success)](https://github.com/PatrickCmd/ai-agents-news-aggregator/releases/tag/scheduler-v0.4.0)
 [![API](https://img.shields.io/badge/sub--project%20%234-api--v0.5.0-success)](https://github.com/PatrickCmd/ai-agents-news-aggregator/releases/tag/api-v0.5.0)
+[![Frontend](https://img.shields.io/badge/sub--project%20%235-frontend--v0.7.0-success)](https://github.com/PatrickCmd/ai-agents-news-aggregator/releases/tag/frontend-v0.7.0)
 [![Python](https://img.shields.io/badge/python-3.12-blue)](.python-version)
 [![Tests](https://img.shields.io/badge/tests-passing-success)](#testing)
 
@@ -86,7 +87,7 @@ working software on its own:
 | **2** | **Agents** | Three Lambdas: digest (per-article summary), editor (per-user top-10 ranking), email (Resend HTML send) | ✅ shipped |
 | **3** | **Scheduler** | `news-scheduler-dev` Lambda + 2 Step Functions state machines (cron pipeline + remix-user) + EventBridge cron + CloudWatch alarms | ✅ shipped |
 | **4** | **API + Auth** | FastAPI on Lambda + API Gateway HTTP API + Clerk JWT (lazy-upsert via FastAPI dep). Six endpoints powering the upcoming Next.js frontend (#5). | ✅ shipped |
-| 5 | **Frontend** | Next.js + Clerk + S3/CloudFront (profile editor, digest history, "remix now" button) | not started |
+| **5** | **Frontend** | Next.js (static export) + Clerk Account Portal + Tailwind v4 / shadcn (dark-first editorial redesign) + TanStack Query, hosted on S3 + CloudFront. Profile editor, digest history, "remix now" button, YouTube preview for video sources, public landing page. | ✅ shipped |
 | 6 | **CI/CD + Ops** | GitHub Actions deploy pipelines, cross-cutting alerts, runbooks | not started |
 
 Each sub-project has its own design spec, implementation plan, Terraform
@@ -420,7 +421,7 @@ artefact).
 | 2 | Agents | `agents-v0.3.0` | ✅ 3 Lambdas, dev workspace |
 | 3 | Scheduler + Orchestration | `scheduler-v0.4.0` | ✅ Lambda + 2 Step Functions + EventBridge cron |
 | 4 | API + Auth | `api-v0.5.0` | ✅ Lambda + API Gateway HTTP API + IAM scoped to remix SFN |
-| 5 | Frontend | — | not started |
+| 5 | Frontend | `frontend-v0.7.0` | ✅ Next.js static export + S3 + CloudFront + Clerk + Route 53 + editorial redesign |
 | 6 | CI/CD + Ops | — | not started |
 
 **End-to-end verified in production:** the cron pipeline ran on
@@ -643,6 +644,48 @@ Sub-project #4 adds one new SSM SecureString (`clerk_secret_key`); the
 publishable key lives in the frontend, not the backend. See
 [infra/README.md](infra/README.md) § "Sub-project #4 — API + Auth"
 for full lifecycle, IAM scope, and failure modes.
+
+## Running the Frontend (#5)
+
+A Next.js static-export app served from S3 + CloudFront. Three
+authenticated pages: digest list, digest detail, profile editor,
+plus a public landing page for signed-out visitors.
+Auth via Clerk's hosted Account Portal — no auth UI to build or
+maintain. Data via TanStack Query against the API (#4).
+
+```sh
+# Local dev (requires the API running locally — see "Running the API (#4)")
+cp web/.env.example web/.env.local      # fill in NEXT_PUBLIC_*
+make web-install                        # pnpm install --ignore-scripts
+make web-dev                            # → http://localhost:3000
+
+# Deploy
+make web-deploy-dev                     # workflow_dispatch
+make web-deploy-test
+make web-deploy-prod                    # gated by GitHub Environment reviewer
+
+# Tests + supply-chain scan
+make web-test
+make web-typecheck
+make web-osv                            # OSV-Scanner CVE check
+```
+
+Sub-project #5 introduces three new domains:
+`digest.patrickcmd.dev` (prod), `dev-digest.patrickcmd.dev`,
+`test-digest.patrickcmd.dev`. ACM wildcard cert + Route 53 zone
+reused; one CloudFront distribution per env. Per-env GitHub
+Environments hold the Clerk publishable key + Terraform outputs.
+
+The dark-first editorial redesign (`web-v0.7.0`) ships Fraunces
+display + Geist body + Geist Mono metadata, a warm-amber accent on
+warm-slate dark, asymmetric landing hero for signed-out visitors,
+newsletter-style digest list, ranked-article cards with score-chip
+gutter, and privacy-enhanced YouTube preview (`youtube-nocookie.com`)
+for video sources.
+
+See [infra/README.md](infra/README.md) § "Sub-project #5 — Frontend"
+for the full deploy lifecycle, GitHub Environment configuration, and
+failure mode reference.
 
 ---
 

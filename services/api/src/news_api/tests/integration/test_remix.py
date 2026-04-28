@@ -91,6 +91,28 @@ async def test_remix_rejects_lookback_out_of_range(api_client, auth_header, mock
     mock_start_remix.assert_not_called()
 
 
+async def test_remix_503_when_state_machine_arn_missing(
+    api_client, auth_header, monkeypatch, mock_start_remix
+):
+    """Local-dev / misconfigured-deploy path: empty ARN → 503, no SFN call."""
+    from news_api.settings import get_api_settings
+
+    monkeypatch.delenv("REMIX_STATE_MACHINE_ARN", raising=False)
+    monkeypatch.setenv("REMIX_STATE_MACHINE_ARN", "")
+    get_api_settings.cache_clear()
+
+    h = auth_header(sub="user_rx_unconf", email="rxu@x.com", name="R")
+    await api_client.get("/v1/me", headers=h)
+    await api_client.put("/v1/me/profile", headers=h, json=_SAMPLE_PROFILE)
+
+    resp = await api_client.post("/v1/remix", headers=h, json={"lookback_hours": 24})
+    assert resp.status_code == 503
+    body = resp.json()
+    error_payload = body.get("error") or body.get("detail", {}).get("error")
+    assert error_payload == "remix_unconfigured"
+    mock_start_remix.assert_not_called()
+
+
 async def test_remix_writes_audit_row(
     api_client, auth_header, mock_start_remix, db_session_factory
 ):

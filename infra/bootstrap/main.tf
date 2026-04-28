@@ -116,3 +116,21 @@ resource "aws_s3_bucket_lifecycle_configuration" "lambda_artifacts" {
     noncurrent_version_expiration { noncurrent_days = 90 }
   }
 }
+
+# GitHub Actions OIDC provider — used by sub-project #5's web-deploy.yml workflow
+# (and any future workflows that need to assume AWS roles).
+resource "aws_iam_openid_connect_provider" "github" {
+  url            = "https://token.actions.githubusercontent.com"
+  client_id_list = ["sts.amazonaws.com"]
+  thumbprint_list = [
+    # GitHub's certificate thumbprint — pinned per AWS docs.
+    # https://docs.github.com/en/actions/deployment/security-hardening-your-deployments/configuring-openid-connect-in-amazon-web-services
+    "6938fd4d98bab03faadb97b34396831e3780aea1", # pragma: allowlist secret
+    "1c58a3a8518e8759bf075b76b750d4f2df264fcd", # pragma: allowlist secret
+  ]
+
+  tags = {
+    Project = "news-aggregator"
+    Module  = "bootstrap"
+  }
+}

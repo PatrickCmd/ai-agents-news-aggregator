@@ -18,6 +18,22 @@
     "test": "vitest run",
     "test:watch": "vitest"
   },
-  "dependencies": {},
-  "devDependencies": {}
+  "dependencies": {
+    "next": "^16.2.4",
+    "react": "^19.2.5",
+    "react-dom": "^19.2.5"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.2.4",
+    "@tailwindcss/typography": "^0.5.19",
+    "@types/node": "^25.6.0",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "postcss": "^8.5.12",
+    "prettier": "^3.8.3",
+    "prettier-plugin-tailwindcss": "^0.8.0",
+    "tailwindcss": "^4.2.4",
+    "tailwindcss-animate": "^1.0.7",
+    "typescript": "^6.0.3"
+  }
 }

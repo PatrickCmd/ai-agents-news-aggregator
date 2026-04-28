@@ -496,6 +496,6 @@ web-destroy-prod:           ## DESTRUCTIVE: tear down prod infra (use VERY caref
 	@read -p "Type 'destroy-prod' to confirm: " c && [ "$$c" = "destroy-prod" ] || (echo aborted; exit 1)
 	gh workflow run web-deploy.yml -f environment=prod -f action=destroy
 
-tag-web:                    ## tag sub-project #5
-	git tag -f -a frontend-v0.6.0 -m "Sub-project #5 Frontend (Next.js + Clerk + S3/CloudFront)"
-	@echo "Push with: git push origin frontend-v0.6.0"
+tag-web:                    ## tag sub-project #5 (frontend) — bumped after the editorial redesign (web-v0.7.0)
+	git tag -f -a frontend-v0.7.0 -m "Sub-project #5 Frontend — Next.js + Clerk + S3/CloudFront + editorial redesign"
+	@echo "Push with: git push origin frontend-v0.7.0"

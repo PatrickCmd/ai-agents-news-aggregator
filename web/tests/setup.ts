@@ -45,6 +45,13 @@ afterEach(() => {
 });
 afterAll(() => server.close());
 
+// next/navigation: stub so components using useSearchParams/useRouter work outside App Router.
+vi.mock("next/navigation", () => ({
+  useSearchParams: () => new URLSearchParams(),
+  useRouter: () => ({ replace: vi.fn(), push: vi.fn() }),
+  usePathname: () => "/profile",
+}));
+
 // Process env defaults for tests.
 process.env.NEXT_PUBLIC_API_URL = "http://localhost:8000";
 process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY = "pk_test_dummy";

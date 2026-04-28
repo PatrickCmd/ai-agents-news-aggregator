@@ -22,6 +22,14 @@ export function DigestListSection() {
 
   const digests = list.data?.pages.flatMap((p) => p.items) ?? [];
 
+  const lastRefreshed = list.dataUpdatedAt
+    ? new Date(list.dataUpdatedAt).toLocaleTimeString("en-US", {
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      })
+    : null;
+
   return (
     <section className="mx-auto max-w-3xl space-y-8 py-6">
       <header className="flex flex-wrap items-end justify-between gap-3 border-b border-[var(--rule)] pb-6">
@@ -33,15 +41,22 @@ export function DigestListSection() {
             Your digests<span className="text-primary">.</span>
           </h1>
         </div>
-        <Button
-          variant="outline"
-          onClick={() => remix.mutate(24)}
-          disabled={remix.isPending}
-          className="font-mono text-xs uppercase tracking-[0.14em]"
-        >
-          <SparklesIcon className="mr-2 h-3.5 w-3.5" />
-          {remix.isPending ? "Triggering…" : "Remix now"}
-        </Button>
+        <div className="flex flex-col items-end gap-1">
+          <Button
+            variant="outline"
+            onClick={() => remix.mutate(24)}
+            disabled={remix.isPending}
+            className="font-mono text-xs uppercase tracking-[0.14em]"
+          >
+            <SparklesIcon className="mr-2 h-3.5 w-3.5" />
+            {remix.isPending ? "Triggering…" : "Remix now"}
+          </Button>
+          {lastRefreshed && (
+            <p className="font-mono text-[0.65rem] uppercase tracking-[0.16em] text-[var(--ink-dim)]">
+              last refreshed {lastRefreshed}
+            </p>
+          )}
+        </div>
       </header>
 
       {list.isLoading ? (

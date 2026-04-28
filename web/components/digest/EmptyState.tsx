@@ -1,7 +1,7 @@
 export function EmptyState() {
   return (
     <div className="space-y-3 border-t border-[var(--rule)] py-12 text-center">
-      <p className="font-mono text-xs uppercase tracking-[0.18em] text-[var(--ink-dim)]">
+      <p className="font-mono text-xs uppercase tracking-[0.16em] text-[var(--ink-dim)]">
         empty
       </p>
       <h3 className="font-display text-2xl">No digests yet.</h3>

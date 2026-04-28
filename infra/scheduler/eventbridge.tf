@@ -51,6 +51,7 @@ resource "aws_cloudwatch_metric_alarm" "cron_failed" {
   threshold           = 1
   alarm_description   = "news-cron-pipeline state machine status FAILED/TIMED_OUT"
   treat_missing_data  = "notBreaching"
+  alarm_actions       = [data.aws_ssm_parameter.alerts_arn.value]
 
   dimensions = {
     StateMachineArn = aws_sfn_state_machine.cron.arn
@@ -70,6 +71,7 @@ resource "aws_cloudwatch_metric_alarm" "cron_stale" {
   threshold           = 1
   alarm_description   = "news-cron-pipeline has not had a successful run in 36h"
   treat_missing_data  = "breaching"
+  alarm_actions       = [data.aws_ssm_parameter.alerts_arn.value]
 
   dimensions = {
     StateMachineArn = aws_sfn_state_machine.cron.arn

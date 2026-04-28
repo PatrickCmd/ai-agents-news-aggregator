@@ -91,11 +91,31 @@ working software on its own:
 | 6 | **CI/CD + Ops** | GitHub Actions deploy pipelines, cross-cutting alerts, runbooks | not started |
 
 Each sub-project has its own design spec, implementation plan, Terraform
-module, IAM scope, and release tag. **Sub-projects #0–#3 are deployed and
+module, IAM scope, and release tag. **Sub-projects #0–#5 are deployed and
 live on AWS today** — the daily cron has been verified end-to-end in
 production: scraper triggered via Step Functions HTTP-invoke, polled to
 completion, 19 articles digested in parallel, 1 user ranked, 1 email
 delivered via Resend — all in 2m24s.
+
+---
+
+## Frontend Preview
+
+Sub-project #5 ships a dark-first editorial reader at
+[dev-digest.patrickcmd.dev](https://dev-digest.patrickcmd.dev). Public
+landing for signed-out visitors; authenticated digest list, detail, and
+profile editor for signed-in users. YouTube embed for video sources via
+the privacy-enhanced `youtube-nocookie.com` host.
+
+| Public landing | Digest detail with YouTube preview |
+|---|---|
+| ![Landing hero](docs/img/web-landing.webp) | ![Digest detail](docs/img/web-digest-detail.webp) |
+
+Typography: [Fraunces](https://fonts.google.com/specimen/Fraunces) for
+display, [Geist](https://vercel.com/font) for body, Geist Mono for
+metadata (dates, scores, ranks). Single warm-amber accent
+(`oklch(0.78 0.16 65)`) on warm-slate dark
+(`oklch(0.16 0.012 245)`) — never pure black, never violet.
 
 ---
 

@@ -1,0 +1,91 @@
+name: web-deploy
+
+# NOTE: the `destroy` path runs `terraform destroy` which deletes resources the
+# minimal `gh-actions-deploy-web-{env}` IAM role (defined in infra/web/github_oidc.tf)
+# cannot delete (CloudFront distribution, S3 bucket, IAM role itself, Route53 records).
+# Treat the workflow's destroy choice as a developer convenience only — for real
+# teardown, run `make web-destroy-{env}` locally with full Terraform access.
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        type: choice
+        description: "Target env"
+        options: [dev, test, prod]
+        default: dev
+      action:
+        type: choice
+        description: "deploy or destroy"
+        options: [deploy, destroy]
+        default: deploy
+
+permissions:
+  id-token: write   # for OIDC AWS auth
+  contents: read
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    # IMPORTANT: this `environment` key is REQUIRED — the OIDC IAM role's sub-claim
+    # restricts AssumeRole to `repo:<owner>/<name>:environment:{env}`. Removing
+    # this key will break deploys with AccessDenied on AssumeRole.
+    environment: ${{ inputs.environment }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: us-east-1
+
+      # ─── deploy path ────────────────────────────────────────────────────
+      - if: ${{ inputs.action == 'deploy' }}
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - if: ${{ inputs.action == 'deploy' }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+
+      - if: ${{ inputs.action == 'deploy' }}
+        name: Build
+        working-directory: web
+        env:
+          NEXT_PUBLIC_API_URL: ${{ vars.NEXT_PUBLIC_API_URL }}
+          NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY }}
+        run: |
+          pnpm install --frozen-lockfile --ignore-scripts
+          pnpm build
+
+      - if: ${{ inputs.action == 'deploy' }}
+        name: Sync to S3 + invalidate CloudFront
+        env:
+          BUCKET: ${{ vars.S3_BUCKET }}
+          DIST_ID: ${{ vars.CLOUDFRONT_DISTRIBUTION_ID }}
+        run: |
+          aws s3 sync web/out/ "s3://$BUCKET/" --delete
+          aws cloudfront create-invalidation --distribution-id "$DIST_ID" --paths '/*'
+
+      # ─── destroy path ───────────────────────────────────────────────────
+      - if: ${{ inputs.action == 'destroy' }}
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.6"
+
+      - if: ${{ inputs.action == 'destroy' }}
+        name: Terraform destroy
+        working-directory: infra/web
+        run: |
+          terraform init \
+            -backend-config="bucket=news-aggregator-tf-state-${{ vars.AWS_ACCOUNT_ID }}" \
+            -backend-config="key=web/terraform.tfstate" \
+            -backend-config="region=us-east-1"
+          terraform workspace select ${{ inputs.environment }}
+          terraform destroy -auto-approve \
+            -var=subdomain=${{ vars.SUBDOMAIN }} \
+            -var=github_repo=PatrickCmd/ai-agents-news-aggregator

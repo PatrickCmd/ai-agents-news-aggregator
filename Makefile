@@ -447,6 +447,7 @@ tag-api:                    ## tag sub-project #4
 
 .PHONY: web-install web-dev web-build web-test web-test-watch web-lint \
         web-typecheck web-osv \
+        web-deploy-local-dev web-deploy-local-test web-deploy-local-prod \
         web-deploy-dev web-deploy-test web-deploy-prod \
         web-destroy-dev web-destroy-test web-destroy-prod \
         tag-web
@@ -474,6 +475,37 @@ web-typecheck:              ## tsc --noEmit
 
 web-osv:                    ## OSV-Scanner against web/
 	osv-scanner --recursive --fail-on-vuln web/
+
+web-deploy-local-dev:       ## local deploy to dev (builds + syncs + invalidates; uses terraform outputs + AWS_PROFILE)
+	@cd infra/web && terraform workspace select dev >/dev/null
+	@$(eval BUCKET := $(shell cd infra/web && terraform output -raw bucket_name))
+	@$(eval DIST_ID := $(shell cd infra/web && terraform output -raw distribution_id))
+	@if [ -z "$$NEXT_PUBLIC_API_URL" ] || [ -z "$$NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY" ]; then \
+	  echo "error: export NEXT_PUBLIC_API_URL and NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY first" >&2; exit 1; \
+	fi
+	S3_BUCKET=$(BUCKET) CLOUDFRONT_DISTRIBUTION_ID=$(DIST_ID) AWS_PROFILE=aiengineer \
+	  ./scripts/web-deploy.sh dev
+
+web-deploy-local-test:      ## local deploy to test
+	@cd infra/web && terraform workspace select test >/dev/null
+	@$(eval BUCKET := $(shell cd infra/web && terraform output -raw bucket_name))
+	@$(eval DIST_ID := $(shell cd infra/web && terraform output -raw distribution_id))
+	@if [ -z "$$NEXT_PUBLIC_API_URL" ] || [ -z "$$NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY" ]; then \
+	  echo "error: export NEXT_PUBLIC_API_URL and NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY first" >&2; exit 1; \
+	fi
+	S3_BUCKET=$(BUCKET) CLOUDFRONT_DISTRIBUTION_ID=$(DIST_ID) AWS_PROFILE=aiengineer \
+	  ./scripts/web-deploy.sh test
+
+web-deploy-local-prod:      ## local deploy to prod (use VERY carefully — bypasses CI gating)
+	@read -p "Type 'deploy-prod-local' to confirm bypassing CI: " c && [ "$$c" = "deploy-prod-local" ] || (echo aborted; exit 1)
+	@cd infra/web && terraform workspace select prod >/dev/null
+	@$(eval BUCKET := $(shell cd infra/web && terraform output -raw bucket_name))
+	@$(eval DIST_ID := $(shell cd infra/web && terraform output -raw distribution_id))
+	@if [ -z "$$NEXT_PUBLIC_API_URL" ] || [ -z "$$NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY" ]; then \
+	  echo "error: export NEXT_PUBLIC_API_URL and NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY first" >&2; exit 1; \
+	fi
+	S3_BUCKET=$(BUCKET) CLOUDFRONT_DISTRIBUTION_ID=$(DIST_ID) AWS_PROFILE=aiengineer \
+	  ./scripts/web-deploy.sh prod
 
 web-deploy-dev:             ## trigger web-deploy.yml for dev (gh CLI)
 	gh workflow run web-deploy.yml -f environment=dev -f action=deploy

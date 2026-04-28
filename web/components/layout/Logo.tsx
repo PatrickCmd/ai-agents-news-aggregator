@@ -1,6 +1,9 @@
 import Link from "next/link";
 
-export function Logo({ as = "link" }: { as?: "link" | "static" } = {}) {
+export function Logo({
+  /** "static" removes the <Link> wrapper. Used by Task 5.1 <SampleDigestCard /> tilted preview. */
+  as = "link",
+}: { as?: "link" | "static" } = {}) {
   const inner = (
     <span className="font-display text-xl font-semibold leading-none tracking-tight">
       digest<span className="text-primary">.</span>

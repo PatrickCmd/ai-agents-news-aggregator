@@ -27,7 +27,7 @@ describe("ThemeProvider", () => {
     expect(document.documentElement.classList.contains("dark")).toBe(false);
   });
 
-  it("adds .light to <html> when setTheme('light') is called", () => {
+  it("adds .light to <html> when setTheme('light') is called and persists to localStorage", () => {
     const { getByTestId } = render(
       <ThemeProvider>
         <Probe />
@@ -37,9 +37,10 @@ describe("ThemeProvider", () => {
       getByTestId("probe").click();
     });
     expect(document.documentElement.classList.contains("light")).toBe(true);
+    expect(localStorage.getItem("theme")).toBe("light");
   });
 
-  it("removes .light when flipping back to dark", () => {
+  it("removes .light when flipping back to dark and persists to localStorage", () => {
     const { getByTestId, rerender } = render(
       <ThemeProvider>
         <Probe />
@@ -63,5 +64,17 @@ describe("ThemeProvider", () => {
       getByTestId("probe2").click();
     });
     expect(document.documentElement.classList.contains("light")).toBe(false);
+    expect(localStorage.getItem("theme")).toBe("dark");
+  });
+
+  it("reads initial theme from localStorage on mount", () => {
+    localStorage.setItem("theme", "light");
+    const { getByTestId } = render(
+      <ThemeProvider>
+        <Probe />
+      </ThemeProvider>,
+    );
+    expect(getByTestId("probe").getAttribute("data-theme")).toBe("light");
+    expect(document.documentElement.classList.contains("light")).toBe(true);
   });
 });

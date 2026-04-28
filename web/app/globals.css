@@ -30,9 +30,9 @@
   --color-input: var(--rule);
   --color-ring: var(--accent);
 
-  --font-display: "Fraunces Variable", "Fraunces", ui-serif, Georgia, "Times New Roman", serif;
-  --font-sans: "Geist Variable", "Geist", ui-sans-serif, system-ui, -apple-system, sans-serif;
-  --font-mono: "Geist Mono Variable", "Geist Mono", ui-monospace, "JetBrains Mono", "Menlo", monospace;
+  --font-display: var(--font-fraunces), ui-serif, Georgia, "Times New Roman", serif;
+  --font-sans: var(--font-geist), ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, "JetBrains Mono", "Menlo", monospace;
 
   --radius: 0.5rem;
   --radius-sm: calc(var(--radius) * 0.6);

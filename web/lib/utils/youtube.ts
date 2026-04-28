@@ -20,7 +20,7 @@ export function youtubeIdFromUrl(url: string): string | null {
 
   // youtu.be/<id>[?t=...]
   if (parsed.hostname === "youtu.be" || parsed.hostname === "www.youtu.be") {
-    const id = parsed.pathname.slice(1).split("/")[0];
+    const id = parsed.pathname.slice(1).split("/")[0] ?? "";
     return ID_RE.test(id) ? id : null;
   }
 
@@ -32,7 +32,8 @@ export function youtubeIdFromUrl(url: string): string | null {
 
   // youtube.com/shorts/<id> or /embed/<id>
   const m = parsed.pathname.match(/^\/(?:shorts|embed)\/([^/?]+)/);
-  if (m && ID_RE.test(m[1])) return m[1];
+  const candidate = m?.[1] ?? "";
+  if (candidate && ID_RE.test(candidate)) return candidate;
 
   return null;
 }

@@ -9,6 +9,9 @@ describe("<YouTubePreview />", () => {
     expect(iframe.tagName).toBe("IFRAME");
     expect(iframe.src).toBe("https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ");
     expect(iframe.getAttribute("loading")).toBe("lazy");
+    const allow = iframe.getAttribute("allow") ?? "";
+    expect(allow).toContain("encrypted-media");
+    expect(allow).toContain("picture-in-picture");
   });
 
   it("renders an Open on YouTube escape link", () => {
@@ -17,5 +20,6 @@ describe("<YouTubePreview />", () => {
     expect(link.href).toBe("https://youtu.be/dQw4w9WgXcQ");
     expect(link.target).toBe("_blank");
     expect(link.rel).toContain("noopener");
+    expect(link.rel).toContain("noreferrer");
   });
 });

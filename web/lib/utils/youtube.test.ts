@@ -28,6 +28,10 @@ describe("youtubeIdFromUrl", () => {
     expect(youtubeIdFromUrl("https://www.youtube.com/embed/dQw4w9WgXcQ")).toBe("dQw4w9WgXcQ");
   });
 
+  it("extracts id from m.youtube.com/watch?v= (mobile)", () => {
+    expect(youtubeIdFromUrl("https://m.youtube.com/watch?v=dQw4w9WgXcQ")).toBe("dQw4w9WgXcQ");
+  });
+
   it("returns null for non-YouTube hosts", () => {
     expect(youtubeIdFromUrl("https://vimeo.com/123456")).toBeNull();
     expect(youtubeIdFromUrl("https://example.com/watch?v=dQw4w9WgXcQ")).toBeNull();

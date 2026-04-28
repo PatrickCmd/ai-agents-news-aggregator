@@ -4,9 +4,9 @@
 
 **Goal:** Ship a static-exported Next.js frontend at `digest.patrickcmd.dev` that lets a Clerk-authenticated user complete onboarding, browse daily digests, and trigger on-demand "remix now" runs — closing the loop between the cron pipeline (#3) and the end user.
 
-**Architecture:** `output: "export"` Next.js → `web/out/` → S3 + CloudFront via OAC. `@clerk/clerk-react` (SPA flavour, NOT `@clerk/nextjs`) for auth — `<RedirectToSignIn />` to Clerk's hosted Account Portal. TanStack Query for all data, React Hook Form + Zod for the profile editor, Tailwind v4 + shadcn/ui for styling. Per-env Terraform module under `infra/web/`, manual `workflow_dispatch` GitHub Actions deploys with deploy|destroy + dev|test|prod choices.
+**Architecture:** `output: "export"` Next.js → `web/out/` → S3 + CloudFront via OAC. `@clerk/react` (SPA flavour, NOT `@clerk/nextjs`) for auth — `<RedirectToSignIn />` to Clerk's hosted Account Portal. TanStack Query for all data, React Hook Form + Zod for the profile editor, Tailwind v4 + shadcn/ui for styling. Per-env Terraform module under `infra/web/`, manual `workflow_dispatch` GitHub Actions deploys with deploy|destroy + dev|test|prod choices.
 
-**Tech Stack:** TypeScript strict, pnpm ≥ 9, Next.js 15 (static export), Tailwind v4, shadcn/ui, @clerk/clerk-react, TanStack Query v5, React Hook Form, Zod, sonner (toasts), Vitest + @testing-library/react + MSW, Terraform, GitHub Actions OIDC.
+**Tech Stack:** TypeScript strict, pnpm ≥ 9, Next.js 15 (static export), Tailwind v4, shadcn/ui, @clerk/react, TanStack Query v5, React Hook Form, Zod, sonner (toasts), Vitest + @testing-library/react + MSW, Terraform, GitHub Actions OIDC.
 
 ---
 
@@ -591,7 +591,7 @@ import { cleanup } from "@testing-library/react";
 import { server } from "./mocks/server";
 
 // Clerk: stub the SDK so tests never hit the real Clerk service.
-vi.mock("@clerk/clerk-react", () => ({
+vi.mock("@clerk/react", () => ({
   ClerkProvider: ({ children }: { children: React.ReactNode }) => children,
   useAuth: () => ({
     isLoaded: true,
@@ -1137,7 +1137,7 @@ describe("useApiClient", () => {
 
   it("calls getToken with template 'news-api'", async () => {
     const getTokenMock = vi.fn().mockResolvedValue("custom-token");
-    vi.doMock("@clerk/clerk-react", () => ({
+    vi.doMock("@clerk/react", () => ({
       useAuth: () => ({ isLoaded: true, isSignedIn: true, getToken: getTokenMock }),
     }));
 
@@ -1168,7 +1168,7 @@ pnpm test
 ```ts
 "use client";
 
-import { useAuth } from "@clerk/clerk-react";
+import { useAuth } from "@clerk/react";
 import { ApiError } from "@/lib/types/api";
 
 export interface ApiClient {
@@ -2057,7 +2057,7 @@ import { render, screen } from "@testing-library/react";
 
 describe("RequireAuth", () => {
   it("renders skeleton while !isLoaded", async () => {
-    vi.doMock("@clerk/clerk-react", () => ({
+    vi.doMock("@clerk/react", () => ({
       useAuth: () => ({ isLoaded: false, isSignedIn: false }),
       RedirectToSignIn: () => <div data-testid="redirect" />,
     }));
@@ -2073,7 +2073,7 @@ describe("RequireAuth", () => {
 
   it("renders <RedirectToSignIn> when loaded but not signed in", async () => {
     vi.resetModules();
-    vi.doMock("@clerk/clerk-react", () => ({
+    vi.doMock("@clerk/react", () => ({
       useAuth: () => ({ isLoaded: true, isSignedIn: false }),
       RedirectToSignIn: () => <div data-testid="redirect" />,
     }));
@@ -2089,7 +2089,7 @@ describe("RequireAuth", () => {
 
   it("renders children when signed in", async () => {
     vi.resetModules();
-    vi.doMock("@clerk/clerk-react", () => ({
+    vi.doMock("@clerk/react", () => ({
       useAuth: () => ({ isLoaded: true, isSignedIn: true }),
       RedirectToSignIn: () => null,
     }));
@@ -2114,7 +2114,7 @@ pnpm test
 
 ```sh
 cd web
-pnpm add @clerk/clerk-react
+pnpm add @clerk/react
 ```
 
 - [ ] **Step 4: Create `web/components/auth/RequireAuth.tsx`**
@@ -2122,7 +2122,7 @@ pnpm add @clerk/clerk-react
 ```tsx
 "use client";
 
-import { RedirectToSignIn, useAuth } from "@clerk/clerk-react";
+import { RedirectToSignIn, useAuth } from "@clerk/react";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export function RequireAuth({ children }: { children: React.ReactNode }) {
@@ -2316,7 +2316,7 @@ git commit -m "feat(web): <ThemeToggle> dropdown (light/dark/system)"
 "use client";
 
 import Link from "next/link";
-import { UserButton } from "@clerk/clerk-react";
+import { UserButton } from "@clerk/react";
 import { ThemeToggle } from "@/components/layout/ThemeToggle";
 
 export function Header() {
@@ -2328,7 +2328,7 @@ export function Header() {
         </Link>
         <div className="flex items-center gap-2">
           <ThemeToggle />
-          <UserButton afterSignOutUrl="/" />
+          <UserButton />
         </div>
       </div>
     </header>
@@ -2395,7 +2395,7 @@ git commit -m "feat(web): <Header> (logo + ThemeToggle + UserButton) + <Footer>"
 
 ```tsx
 import type { Metadata } from "next";
-import { ClerkProvider } from "@clerk/clerk-react";
+import { ClerkProvider } from "@clerk/react";
 import { Toaster } from "@/components/ui/sonner";
 import { ThemeProvider } from "@/lib/theme";
 import { QueryProvider } from "@/lib/queryProvider";
@@ -2426,7 +2426,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         />
       </head>
       <body className="min-h-screen flex flex-col">
-        <ClerkProvider publishableKey={process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY!}>
+        <ClerkProvider
+          publishableKey={process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY!}
+          signInFallbackRedirectUrl="/"
+          signUpFallbackRedirectUrl="/"
+        >
           <ThemeProvider>
             <QueryProvider>
               <Header />
@@ -4588,7 +4592,7 @@ Apply these edits in order:
 Replace with:
 
 ```
-| **5** | Frontend — `web/` Next.js (static export) + `@clerk/clerk-react` + Tailwind/shadcn + TanStack Query + RHF/Zod, hosted on S3 + CloudFront via per-env Terraform module under `infra/web/` | shipped — tag `frontend-v0.6.0` |
+| **5** | Frontend — `web/` Next.js (static export) + `@clerk/react` + Tailwind/shadcn + TanStack Query + RHF/Zod, hosted on S3 + CloudFront via per-env Terraform module under `infra/web/` | shipped — tag `frontend-v0.6.0` |
 ```
 
 - [ ] **Step 2: Add `web/` to the repo layout block.** Find the existing `web/` line:
@@ -4617,7 +4621,7 @@ Replace with:
 A Next.js static-export app at `digest.patrickcmd.dev` (prod) /
 `dev-digest.patrickcmd.dev` / `test-digest.patrickcmd.dev`. Hosted on
 S3 + CloudFront via per-env Terraform workspace. Auth via Clerk's
-hosted Account Portal (`@clerk/clerk-react`, NOT `@clerk/nextjs`).
+hosted Account Portal (`@clerk/react`, NOT `@clerk/nextjs`).
 Reads the same JWT template `news-api` that the backend's #4 smoke
 uses — single source of truth for the email + name claims contract.
 
@@ -4648,7 +4652,7 @@ lifecycle, GitHub Environment setup, and rollback recipe.
 - [ ] **Step 5: Append to "What NOT to do":**
 
 ```markdown
-- Do not use `@clerk/nextjs` in the `web/` package. We ship a static export, which is incompatible with Next.js middleware-based auth. Use `@clerk/clerk-react` (the SPA flavour) — `<RedirectToSignIn />`, `<UserButton />`, `useAuth().getToken({ template: "news-api" })`.
+- Do not use `@clerk/nextjs` in the `web/` package. We ship a static export, which is incompatible with Next.js middleware-based auth. Use `@clerk/react` (the SPA flavour) — `<RedirectToSignIn />`, `<UserButton />`, `useAuth().getToken({ template: "news-api" })`.
 - Do not use `output: "standalone"` or default Next.js (which assumes a Node server). The `web/next.config.ts` MUST set `output: "export"` — every page is pre-rendered HTML, no SSR / server actions / middleware.
 - Do not use `npm` or `yarn` in `web/`. The lockfile is `pnpm-lock.yaml` and the security model relies on pnpm's strict resolution. Run `pnpm` commands; the Makefile targets enforce this.
 - Do not run `pnpm install` without `--ignore-scripts` in CI. It's the dominant npm supply-chain attack vector. The Makefile target and `web-ci.yml` workflow both pass it.

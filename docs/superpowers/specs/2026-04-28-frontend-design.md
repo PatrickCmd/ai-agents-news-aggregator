@@ -44,7 +44,7 @@ other AWS service directly — every read and write goes through
 - **No SSR / Next.js server components / middleware.** Static export
   only (`output: "export"`). Every page is pre-rendered HTML; Clerk
   + data fetching are hydrated client-side.
-- **No `@clerk/nextjs`.** We use `@clerk/clerk-react` (the SPA
+- **No `@clerk/nextjs`.** We use `@clerk/react` (the SPA
   flavour). Next.js's middleware-based auth is incompatible with
   static export.
 - **No public marketing landing page.** Unauthenticated `/` redirects
@@ -199,7 +199,7 @@ The `?onboarding=1` query param triggers a banner on `/profile`:
 | Concern | Decision |
 |---|---|
 | Sign-in / sign-up UI | **Clerk Account Portal (hosted)** — `<RedirectToSignIn />` |
-| SDK | **`@clerk/clerk-react`** (SPA-flavour, NOT `@clerk/nextjs`) |
+| SDK | **`@clerk/react`** (SPA-flavour, NOT `@clerk/nextjs`) |
 | JWT template | **`news-api`** — same template used by the backend smoke test (email + name claims, ≥120 s lifetime). Single source of truth for the contract. |
 | Sign-out | **`<UserButton>`** drop-in component — handles avatar + sign-out + redirect |
 | Protected route wrapper | **`<RequireAuth>`** — uses `useAuth()` to gate children; redirects when `!isSignedIn` |
@@ -212,11 +212,15 @@ The `?onboarding=1` query param triggers a banner on `/profile`:
 `web/app/layout.tsx`:
 
 ```tsx
-import { ClerkProvider } from "@clerk/clerk-react";
+import { ClerkProvider } from "@clerk/react";
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <ClerkProvider publishableKey={process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY!}>
+    <ClerkProvider
+      publishableKey={process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY!}
+      signInFallbackRedirectUrl="/"
+      signUpFallbackRedirectUrl="/"
+    >
       <ThemeProvider>
         <QueryClientProvider client={queryClient}>
           <Header />
@@ -235,7 +239,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 `web/components/auth/RequireAuth.tsx`:
 
 ```tsx
-import { RedirectToSignIn, useAuth } from "@clerk/clerk-react";
+import { RedirectToSignIn, useAuth } from "@clerk/react";
 
 export function RequireAuth({ children }: { children: React.ReactNode }) {
   const { isLoaded, isSignedIn } = useAuth();
@@ -252,7 +256,7 @@ Used in `web/app/(authenticated)/layout.tsx` to wrap all three protected routes 
 `web/lib/api.ts`:
 
 ```ts
-import { useAuth } from "@clerk/clerk-react";
+import { useAuth } from "@clerk/react";
 
 export function useApiClient() {
   const { getToken } = useAuth();
@@ -685,7 +689,7 @@ web/
 │   └── types/
 │       └── api.ts               # UserOut, DigestOut, DigestSummaryOut, RemixResponse, ApiError
 └── tests/
-    ├── setup.ts                 # Vitest global setup; mocks @clerk/clerk-react
+    ├── setup.ts                 # Vitest global setup; mocks @clerk/react
     ├── lib/
     │   ├── api.test.ts          # JWT injection, ApiError shape
     │   └── hooks/
@@ -1193,7 +1197,7 @@ JWT injection, cache invalidation on mutation, polling state machine).
 // web/tests/setup.ts
 import { vi } from "vitest";
 
-vi.mock("@clerk/clerk-react", () => ({
+vi.mock("@clerk/react", () => ({
   ClerkProvider: ({ children }: any) => children,
   useAuth: () => ({
     isLoaded: true,
@@ -1305,7 +1309,7 @@ afterAll(() => server.close());
 For cross-referencing in the implementation plan:
 
 - No SSR / server components / middleware (static export only).
-- No `@clerk/nextjs` (use `@clerk/clerk-react`).
+- No `@clerk/nextjs` (use `@clerk/react`).
 - No custom auth UI in v1 (Clerk hosted Account Portal).
 - No public marketing landing page.
 - No account-deletion / unsubscribe / settings page.

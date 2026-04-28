@@ -5,41 +5,41 @@ import { ThemeProvider, useTheme } from "@/lib/theme";
 describe("ThemeProvider", () => {
   beforeEach(() => {
     localStorage.clear();
-    document.documentElement.classList.remove("dark");
+    document.documentElement.className = "";
   });
 
-  it("defaults to 'system' when localStorage is empty", () => {
-    const { result } = renderHook(() => useTheme(), {
-      wrapper: ({ children }) => <ThemeProvider>{children}</ThemeProvider>,
-    });
-    expect(result.current.theme).toBe("system");
-  });
-
-  it("setTheme('dark') applies .dark class on <html>", () => {
-    const { result } = renderHook(() => useTheme(), {
-      wrapper: ({ children }) => <ThemeProvider>{children}</ThemeProvider>,
-    });
-    act(() => result.current.setTheme("dark"));
-    expect(document.documentElement.classList.contains("dark")).toBe(true);
-    expect(localStorage.getItem("theme")).toBe("dark");
-  });
-
-  it("setTheme('light') removes .dark class", () => {
-    document.documentElement.classList.add("dark");
-    const { result } = renderHook(() => useTheme(), {
-      wrapper: ({ children }) => <ThemeProvider>{children}</ThemeProvider>,
-    });
-    act(() => result.current.setTheme("light"));
-    expect(document.documentElement.classList.contains("dark")).toBe(false);
-    expect(localStorage.getItem("theme")).toBe("light");
-  });
-
-  it("reads initial theme from localStorage", () => {
-    localStorage.setItem("theme", "dark");
+  it("defaults to 'dark' when localStorage is empty", () => {
     const { result } = renderHook(() => useTheme(), {
       wrapper: ({ children }) => <ThemeProvider>{children}</ThemeProvider>,
     });
     expect(result.current.theme).toBe("dark");
-    expect(document.documentElement.classList.contains("dark")).toBe(true);
+  });
+
+  it("setTheme('light') applies .light class on <html>", () => {
+    const { result } = renderHook(() => useTheme(), {
+      wrapper: ({ children }) => <ThemeProvider>{children}</ThemeProvider>,
+    });
+    act(() => result.current.setTheme("light"));
+    expect(document.documentElement.classList.contains("light")).toBe(true);
+    expect(localStorage.getItem("theme")).toBe("light");
+  });
+
+  it("setTheme('dark') removes .light class", () => {
+    document.documentElement.classList.add("light");
+    const { result } = renderHook(() => useTheme(), {
+      wrapper: ({ children }) => <ThemeProvider>{children}</ThemeProvider>,
+    });
+    act(() => result.current.setTheme("dark"));
+    expect(document.documentElement.classList.contains("light")).toBe(false);
+    expect(localStorage.getItem("theme")).toBe("dark");
+  });
+
+  it("reads initial theme from localStorage", () => {
+    localStorage.setItem("theme", "light");
+    const { result } = renderHook(() => useTheme(), {
+      wrapper: ({ children }) => <ThemeProvider>{children}</ThemeProvider>,
+    });
+    expect(result.current.theme).toBe("light");
+    expect(document.documentElement.classList.contains("light")).toBe(true);
   });
 });

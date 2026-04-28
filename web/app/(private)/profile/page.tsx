@@ -39,9 +39,20 @@ export default function ProfilePage() {
   const onSubmit: SubmitHandler<UserProfile> = (data) => update.mutate(data);
 
   return (
-    <div className="max-w-2xl mx-auto space-y-6">
+    <div className="mx-auto max-w-3xl space-y-8 py-6">
       {onboarding && <OnboardingBanner />}
-      <h1 className="text-3xl font-bold">Your profile</h1>
+
+      <header className="space-y-2 border-b border-[var(--rule)] pb-6">
+        <p className="font-mono text-xs uppercase tracking-[0.16em] text-[var(--ink-dim)]">
+          profile
+        </p>
+        <h1 className="font-display text-4xl">
+          Tell us what to read for you<span className="text-primary">.</span>
+        </h1>
+        <p className="text-sm text-[var(--ink-dim)]">
+          Your interests, background, and goals shape every ranking.
+        </p>
+      </header>
 
       <FormProvider {...form}>
         <Form {...form}>

@@ -12,18 +12,18 @@ function wrapper({ children }: { children: React.ReactNode }) {
 describe("ProfilePage", () => {
   it("renders profile sections", async () => {
     render(<ProfilePage />, { wrapper });
-    await waitFor(() => expect(screen.getByText(/your profile/i)).toBeInTheDocument());
-    expect(screen.getByText(/background/i)).toBeInTheDocument();
-    expect(screen.getByText(/interests/i)).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText(/tell us what to read for you/i)).toBeInTheDocument());
+    expect(screen.getAllByText(/background/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/interests/i).length).toBeGreaterThan(0);
     expect(screen.getByText(/preferences/i)).toBeInTheDocument();
-    expect(screen.getByText(/goals/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/goals/i).length).toBeGreaterThan(0);
     expect(screen.getByText(/reading time/i)).toBeInTheDocument();
   });
 
   it("submits valid profile via PUT", async () => {
     const user = userEvent.setup();
     render(<ProfilePage />, { wrapper });
-    await waitFor(() => screen.getByText(/your profile/i));
+    await waitFor(() => screen.getByText(/tell us what to read for you/i));
 
     // Add a background entry.
     const addButtons = screen.getAllByRole("button", { name: /add/i });

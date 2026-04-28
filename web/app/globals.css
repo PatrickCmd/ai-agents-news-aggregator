@@ -45,6 +45,7 @@
 }
 
 :root {
+  color-scheme: dark;
   --bg: oklch(0.16 0.012 245);
   --surface: oklch(0.20 0.014 245);
   --surface-2: oklch(0.23 0.014 245);
@@ -57,6 +58,7 @@
 }
 
 .light {
+  color-scheme: light;
   --bg: oklch(0.98 0.006 80);
   --surface: oklch(0.96 0.008 80);
   --surface-2: oklch(0.93 0.010 80);
@@ -64,7 +66,7 @@
   --ink-dim: oklch(0.42 0.010 245);
   --rule: oklch(0.86 0.010 245);
   --accent: oklch(0.62 0.18 65);
-  --accent-ink: oklch(0.98 0.006 80);
+  --accent-ink: oklch(0.18 0.020 65); /* dark text on amber — passes AA */
   --danger: oklch(0.55 0.20 25);
 }
 

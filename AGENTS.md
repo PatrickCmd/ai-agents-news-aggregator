@@ -18,7 +18,7 @@ The system is broken into seven independent sub-projects. Each has its own brain
 | **3** | Scheduler + orchestration — `news_scheduler` Lambda + 2 Step Functions state machines (cron pipeline + remix-user), EventBridge cron at 21:00 UTC, per-sub-project Terraform under `infra/scheduler/` | shipped — tag `scheduler-v0.4.0` |
 | **4** | API + Auth — `news-api` Lambda + API Gateway HTTP API + Clerk JWT (FastAPI dep, lazy upsert), per-sub-project Terraform under `infra/api/` | shipped — tag `api-v0.5.0` |
 | **5** | Frontend — `web/` Next.js (static export) + `@clerk/react` + Tailwind v4 / shadcn + TanStack Query + RHF/Zod, dark-first editorial redesign, hosted on S3 + CloudFront via per-env Terraform module under `infra/web/` | shipped — tag `frontend-v0.7.0` |
-| 6 | CI/CD pipelines + cross-sub-project ops (per-sub-project Terraform is owned by each sub-project, not #6) | not started |
+| **6** | CI/CD + Ops — workflow_dispatch deploys via OIDC for scraper + 5 Lambda services, per-(service, env) IAM roles (18 total), per-Lambda CloudWatch alarms publishing to per-env SNS topic, log retention policies, 3 operational runbooks, dependabot expansion to Terraform | shipped — tag `cicd-ops-v0.8.0` |
 
 Design spec for the current sub-project lives at `docs/superpowers/specs/`. Read the relevant spec file before starting work.
 
@@ -54,12 +54,14 @@ ai-agent-news-aggregator/
 │   ├── scheduler/                  # scheduler Lambda + 2 SFN state machines + EventBridge cron + alarms (#3)
 │   ├── api/                        # FastAPI Lambda + API Gateway HTTP API + IAM (#4)
 │   ├── web/                        # S3 + CloudFront + OAC + Route 53 + GitHub OIDC role per env (#5)
+│   ├── alerts/                     # SNS topics + prod email + SSM ARN export (#6)
 │   └── setup-iam.sh                # one-time NewsAggregator{Core,Compute}Access groups
 ├── web/                            # Next.js frontend (static export, #5) — Tailwind v4 + shadcn + Clerk SPA SDK + TanStack Query + RHF/Zod
 ├── scripts/                        # dev utilities (reset_db.py, seed_user.py)
 ├── tests/integration/              # testcontainers-postgres integration tests
 ├── docs/
 │   ├── architecture.md             # mermaid diagrams
+│   ├── runbooks/                   # operational runbooks for #6
 │   └── superpowers/specs/          # design specs, one per sub-project
 └── rss-mcp/                        # RSS MCP server binary (used by #1)
 ```
@@ -339,6 +341,29 @@ via `useApiClient` hook calling `getToken({ template: "news-api" })`.
 See `infra/README.md` § "Sub-project #5 — Frontend" for full
 lifecycle, GitHub Environment setup, and rollback recipe.
 
+### Sub-project #6 (CI/CD + Ops) — operational commands
+
+CI/CD parity for backend services with the same bar #5 set: OIDC-only deploys via `workflow_dispatch`, per-Lambda alarms, runbooks. The `infra/alerts/` module owns one SNS topic per env (prod-only email subscription); every service's alarms publish to it via SSM-resolved ARN.
+
+```sh
+# CI-triggered deploys (workflow_dispatch via gh CLI)
+make lambda-deploy SERVICE=digest ENV=dev
+make lambda-deploy SERVICE=api ENV=prod
+make scraper-deploy-ci ENV=dev
+
+# Local-direct deploys (operator credentials, terraform applied locally)
+make digest-deploy            # dev workspace, hardcoded
+make api-deploy
+make scraper-deploy
+
+# Manual SNS test (prod requires subscription confirmation first)
+aws sns publish \
+  --topic-arn $(cd infra/alerts && terraform output -raw alerts_topic_arn) \
+  --message "test" --profile aiengineer
+```
+
+Tag: `cicd-ops-v0.8.0`. See `infra/README.md` § "Sub-project #6 — CI/CD + Ops" for full lifecycle.
+
 ## What NOT to do
 
 Anti-patterns that will break invariants in this repo. Reject these on review:
@@ -382,6 +407,11 @@ Anti-patterns that will break invariants in this repo. Reject these on review:
 - Do not commit `web/.env*.local`. They contain real Clerk publishable keys for dev. The `.env.example` is the only one tracked.
 - Do not skip the JWT template — `getToken()` (no template) returns Clerk's default session token which lacks email/name claims, and our backend's `ClerkClaims` Pydantic model requires them. The hook MUST pass `{ template: "news-api" }`.
 - Do not run the `web-deploy.yml` workflow without an `environment:` job-level key. The OIDC IAM role's `sub` claim restricts AssumeRole to `repo:<owner>/<name>:environment:{env}` — omitting the key fails with AccessDenied on every deploy.
+- Do not run `lambda-deploy.yml` or `scraper-deploy.yml` workflows without setting the `environment:` job-level key. The OIDC IAM role's `sub` claim restricts AssumeRole to `repo:<owner>/<name>:environment:{env}` — omitting the key fails with AccessDenied on every deploy.
+- Do not commit `infra/alerts/terraform.tfvars` — it contains the `alert_email`. The `.gitignore` covers it.
+- Do not skip the SNS subscription confirmation email after first prod apply — alarms will fire silently to a topic with no confirmed subscribers.
+- Do not add new alarms without an `alarm_actions = [data.aws_ssm_parameter.alerts_arn.value]` line. Alarms without actions are dashboard-only — they cannot wake anyone.
+- Do not deploy via the `lambda-deploy.yml` workflow's `destroy` action with the assumption it will tear down the full module. The OIDC role's perms are deploy-scoped; for real teardown, run `terraform destroy` locally with operator credentials.
 
 ## Security
 

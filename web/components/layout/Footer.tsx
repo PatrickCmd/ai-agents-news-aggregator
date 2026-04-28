@@ -5,7 +5,7 @@ export function Footer() {
         <p className="font-mono uppercase tracking-[0.16em] text-[var(--ink-dim)]">
           daily · ai-curated · ranked 0–100 · ~5 min read
         </p>
-        <p className="font-mono text-[var(--ink-dim)]">v0.6.0</p>
+        <p className="font-mono text-[var(--ink-dim)]">v0.7.0</p>
       </div>
     </footer>
   );

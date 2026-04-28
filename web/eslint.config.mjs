@@ -2,7 +2,7 @@ import tseslint from "typescript-eslint";
 
 export default [
   {
-    ignores: ["node_modules", ".next", "dist", "build", ".pnpm-store"],
+    ignores: ["node_modules", ".next", "dist", "build", ".pnpm-store", "out/**"],
   },
   ...tseslint.configs.recommended,
   {

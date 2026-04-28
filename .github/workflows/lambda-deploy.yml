@@ -32,8 +32,10 @@ jobs:
 
       - uses: aws-actions/configure-aws-credentials@v4
         with:
-          # Per-service role ARN looked up by GitHub var name.
-          # format() produces lowercase: AWS_DEPLOY_ROLE_ARN_digest, ..._editor, etc.
+          # Per-service role ARN looked up by GitHub var name. format() is plain
+          # string interpolation — the result is lowercase because the `service`
+          # choice options are lowercase strings (digest, editor, etc.), so the
+          # produced var name is e.g. AWS_DEPLOY_ROLE_ARN_digest.
           # GitHub Environment vars must be set with lowercase suffixes matching
           # the choice option strings exactly.
           role-to-assume: ${{ vars[format('AWS_DEPLOY_ROLE_ARN_{0}', inputs.service)] }}

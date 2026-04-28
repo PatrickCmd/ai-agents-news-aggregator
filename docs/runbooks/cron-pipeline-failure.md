@@ -12,7 +12,7 @@ make cron-history
 EXEC=$(aws stepfunctions list-executions \
   --state-machine-arn $(cd infra/scheduler && terraform workspace select prod >/dev/null && terraform output -raw cron_state_machine_arn) \
   --status-filter FAILED --max-items 1 \
-  --profile aiengineer --query 'executions[0].executionArn' --output text)
+  --profile aiengineer --query 'executions[0].name' --output text)
 make cron-describe NAME="$EXEC"
 
 # Recent GitHub Actions deploys that may correlate
@@ -53,12 +53,4 @@ If a recent `lambda-deploy` correlates: re-run with the previous git SHA's tag. 
 
 ## Postmortem
 
-If the incident exceeded 2 hours or affected actual delivered emails:
-
-```sh
-mkdir -p docs/postmortems
-cp docs/runbooks/_postmortem-template.md \
-   docs/postmortems/$(date +%Y-%m-%d)-cron-pipeline-failure.md
-```
-
-Capture: timeline, root cause, customer impact, fix applied, prevention work.
+If the incident exceeded 2 hours or affected actual delivered emails, capture a postmortem under `docs/postmortems/YYYY-MM-DD-cron-pipeline-failure.md`: timeline, root cause, customer impact, fix applied, prevention work.

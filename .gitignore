@@ -42,3 +42,7 @@ web/node_modules/
 web/coverage/
 web/.env.local
 web/.env.*.local
+web/tsconfig.tsbuildinfo
+
+# Claude Code local state
+.claude/

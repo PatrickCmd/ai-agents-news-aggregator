@@ -39,6 +39,15 @@ async def post_remix(
         )
 
     settings = get_api_settings()
+    if not settings.remix_state_machine_arn:
+        # Local dev / misconfigured deploy: the ARN is optional at startup
+        # so `make api-serve` works without AWS, but the route can't run
+        # without it. Surface as 503 (service-unavailable) — operationally
+        # honest, and the frontend's useRemix already toasts on 503.
+        raise HTTPException(
+            status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={"error": "remix_unconfigured"},
+        )
     arn, started = await start_remix(
         state_machine_arn=settings.remix_state_machine_arn,
         user_id=current_user.id,

@@ -32,3 +32,12 @@ def test_settings_allowed_origins_defaults_to_localhost(monkeypatch):
 
     s = ApiSettings()
     assert s.allowed_origins == ["http://localhost:3000"]
+
+
+def test_settings_remix_arn_optional_for_local_dev(monkeypatch):
+    monkeypatch.setenv("CLERK_ISSUER", "https://test.clerk.dev")
+    monkeypatch.setenv("CLERK_JWKS_URL", "https://test.clerk.dev/.well-known/jwks.json")
+    monkeypatch.delenv("REMIX_STATE_MACHINE_ARN", raising=False)
+
+    s = ApiSettings()
+    assert s.remix_state_machine_arn == ""

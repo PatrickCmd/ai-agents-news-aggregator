@@ -1,0 +1,65 @@
+name: scraper-deploy
+
+# NOTE: the `destroy` path runs `terraform destroy` against the entire scraper
+# module — needs broader perms than the deploy-time gh-actions-deploy-scraper-{env}
+# role grants. Treat workflow destroy as a developer convenience; for real
+# teardown, run `make scraper-destroy` locally with operator credentials.
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        type: choice
+        description: "Target env"
+        options: [dev, test, prod]
+        default: dev
+      action:
+        type: choice
+        description: "deploy or destroy"
+        options: [deploy, destroy]
+        default: deploy
+
+permissions:
+  id-token: write   # for OIDC AWS auth
+  contents: read
+
+concurrency: scraper-${{ inputs.environment }}
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    # IMPORTANT: this job-level `environment` key satisfies the OIDC sub-claim.
+    # The IAM role's sub restriction is `repo:<owner>/<name>:environment:{env}`
+    # — without it, AssumeRole returns AccessDenied.
+    environment: ${{ inputs.environment }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - uses: astral-sh/setup-uv@v3
+        with:
+          version: "latest"
+
+      - run: uv python install 3.12
+
+      - if: ${{ inputs.action == 'deploy' }}
+        name: Build + push image + terraform apply (via scripts/scraper-deploy.sh)
+        run: ./scripts/scraper-deploy.sh ${{ inputs.environment }}
+
+      - if: ${{ inputs.action == 'destroy' }}
+        name: Terraform destroy
+        working-directory: infra/scraper
+        env:
+          ACCOUNT_ID: ${{ vars.AWS_ACCOUNT_ID }}
+        run: |
+          terraform init \
+            -backend-config="bucket=news-aggregator-tf-state-${ACCOUNT_ID}" \
+            -backend-config="key=scraper/terraform.tfstate" \
+            -backend-config="region=us-east-1"
+          terraform workspace select ${{ inputs.environment }}
+          terraform destroy -auto-approve

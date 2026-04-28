@@ -1,6 +1,6 @@
 "use client";
 
-import { use } from "react";
+import { useSearchParams } from "next/navigation";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useDigest } from "@/lib/hooks/useDigest";
 import { RankedArticleCard } from "@/components/digest/RankedArticleCard";
@@ -8,23 +8,27 @@ import { DigestDetailSkeleton } from "@/components/digest/DigestDetailSkeleton";
 import { Badge } from "@/components/ui/badge";
 import { ApiError } from "@/lib/types/api";
 
-// Static export: pre-render no specific IDs. The route resolves to a single
-// /digests/[id]/index.html shell that hydrates and fetches client-side.
-// Without this, `next build` errors on dynamic routes for static export.
-export async function generateStaticParams() {
-  return [];
-}
-
 function formatPeriod(start: string, end: string): string {
   const fmt = (s: string) =>
     new Date(s).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
   return `${fmt(start)} — ${fmt(end)}`;
 }
 
-export default function DigestDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = use(params);
-  const numericId = Number(id);
-  const { data, isLoading, error } = useDigest(numericId);
+export default function DigestDetailPage() {
+  const params = useSearchParams();
+  const idParam = params.get("id");
+  const numericId = idParam ? Number(idParam) : NaN;
+  const idValid = Number.isFinite(numericId);
+
+  const { data, isLoading, error } = useDigest(idValid ? numericId : 0);
+
+  if (!idValid) {
+    return (
+      <Alert variant="destructive">
+        <AlertDescription>Missing or invalid digest id.</AlertDescription>
+      </Alert>
+    );
+  }
 
   if (isLoading) return <DigestDetailSkeleton />;
   if (error instanceof ApiError && error.status === 404) {
@@ -39,7 +43,9 @@ export default function DigestDetailPage({ params }: { params: Promise<{ id: str
   return (
     <article className="prose dark:prose-invert max-w-3xl mx-auto">
       <header className="not-prose">
-        <p className="text-sm text-muted-foreground">{formatPeriod(data.period_start, data.period_end)}</p>
+        <p className="text-sm text-muted-foreground">
+          {formatPeriod(data.period_start, data.period_end)}
+        </p>
         <h1 className="text-3xl font-bold mt-1">Your digest</h1>
         {data.top_themes.length > 0 && (
           <div className="flex flex-wrap gap-1 mt-3">

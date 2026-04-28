@@ -1,10 +1,5 @@
 import type { Metadata } from "next";
-import { ClerkProvider } from "@clerk/react";
-import { Toaster } from "@/components/ui/sonner";
-import { ThemeProvider } from "@/lib/theme";
-import { QueryProvider } from "@/lib/queryProvider";
-import { Header } from "@/components/layout/Header";
-import { Footer } from "@/components/layout/Footer";
+import { Providers } from "./providers";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -30,20 +25,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         />
       </head>
       <body className="min-h-screen flex flex-col">
-        <ClerkProvider
-          publishableKey={process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY!}
-          signInFallbackRedirectUrl="/"
-          signUpFallbackRedirectUrl="/"
-        >
-          <ThemeProvider>
-            <QueryProvider>
-              <Header />
-              <main className="flex-1 container py-6">{children}</main>
-              <Footer />
-              <Toaster richColors position="top-right" />
-            </QueryProvider>
-          </ThemeProvider>
-        </ClerkProvider>
+        <Providers>{children}</Providers>
       </body>
     </html>
   );

@@ -24,10 +24,10 @@ describe("DigestCard", () => {
     expect(screen.getByText(/7 articles/i)).toBeInTheDocument();
   });
 
-  it("links to /digests/{id}", () => {
+  it("links to /digest?id={id}", () => {
     render(<DigestCard digest={sample} />);
     const link = screen.getByRole("link", { name: /read/i });
-    expect(link).toHaveAttribute("href", "/digests/17");
+    expect(link).toHaveAttribute("href", "/digest?id=17");
   });
 
   it("handles null intro gracefully", () => {

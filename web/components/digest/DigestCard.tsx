@@ -33,7 +33,7 @@ export function DigestCard({ digest }: { digest: DigestSummaryOut }) {
       <CardFooter className="flex items-center justify-between pt-2">
         <span className="text-sm text-muted-foreground">{digest.article_count} articles</span>
         <Link
-          href={`/digests/${digest.id}`}
+          href={`/digest?id=${digest.id}`}
           className="text-sm font-medium text-primary hover:underline inline-flex items-center gap-1"
         >
           Read <ArrowRightIcon className="h-3 w-3" />

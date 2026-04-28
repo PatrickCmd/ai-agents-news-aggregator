@@ -53,23 +53,13 @@ jobs:
           cache-dependency-path: web/pnpm-lock.yaml
 
       - if: ${{ inputs.action == 'deploy' }}
-        name: Build
-        working-directory: web
+        name: Build + sync + invalidate (via scripts/web-deploy.sh)
         env:
+          S3_BUCKET: ${{ vars.S3_BUCKET }}
+          CLOUDFRONT_DISTRIBUTION_ID: ${{ vars.CLOUDFRONT_DISTRIBUTION_ID }}
           NEXT_PUBLIC_API_URL: ${{ vars.NEXT_PUBLIC_API_URL }}
           NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY }}
-        run: |
-          pnpm install --frozen-lockfile --ignore-scripts
-          pnpm build
-
-      - if: ${{ inputs.action == 'deploy' }}
-        name: Sync to S3 + invalidate CloudFront
-        env:
-          BUCKET: ${{ vars.S3_BUCKET }}
-          DIST_ID: ${{ vars.CLOUDFRONT_DISTRIBUTION_ID }}
-        run: |
-          aws s3 sync web/out/ "s3://$BUCKET/" --delete
-          aws cloudfront create-invalidation --distribution-id "$DIST_ID" --paths '/*'
+        run: ./scripts/web-deploy.sh ${{ inputs.environment }}
 
       # ─── destroy path ───────────────────────────────────────────────────
       - if: ${{ inputs.action == 'destroy' }}

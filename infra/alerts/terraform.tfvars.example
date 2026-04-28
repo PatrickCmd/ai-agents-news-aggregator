@@ -1,0 +1,3 @@
+# alert_email: required for prod, leave empty for dev/test.
+# alert_email = "you@example.com"
+alert_email = ""

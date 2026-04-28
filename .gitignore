@@ -33,3 +33,12 @@ services/scheduler/dist/
 services/scheduler/.package.Dockerfile
 services/api/dist/
 services/api/.package.Dockerfile
+.superpowers/
+
+# Frontend (#5)
+web/.next/
+web/out/
+web/node_modules/
+web/coverage/
+web/.env.local
+web/.env.*.local

@@ -17,7 +17,7 @@ The system is broken into seven independent sub-projects. Each has its own brain
 | **2** | Digest + Editor + Email agents (Lambda chain) — Lambda zips on S3, per-agent Terraform under `infra/{digest,editor,email}/` | shipped — tag `agents-v0.3.0` |
 | **3** | Scheduler + orchestration — `news_scheduler` Lambda + 2 Step Functions state machines (cron pipeline + remix-user), EventBridge cron at 21:00 UTC, per-sub-project Terraform under `infra/scheduler/` | shipped — tag `scheduler-v0.4.0` |
 | **4** | API + Auth — `news-api` Lambda + API Gateway HTTP API + Clerk JWT (FastAPI dep, lazy upsert), per-sub-project Terraform under `infra/api/` | shipped — tag `api-v0.5.0` |
-| 5 | Frontend (Next.js + Clerk + S3/CloudFront) | not started |
+| **5** | Frontend — `web/` Next.js (static export) + `@clerk/react` + Tailwind v4 / shadcn + TanStack Query + RHF/Zod, dark-first editorial redesign, hosted on S3 + CloudFront via per-env Terraform module under `infra/web/` | shipped — tag `frontend-v0.7.0` |
 | 6 | CI/CD pipelines + cross-sub-project ops (per-sub-project Terraform is owned by each sub-project, not #6) | not started |
 
 Design spec for the current sub-project lives at `docs/superpowers/specs/`. Read the relevant spec file before starting work.
@@ -53,8 +53,9 @@ ai-agent-news-aggregator/
 │   ├── {digest,editor,email}/      # per-agent Lambda + IAM (#2)
 │   ├── scheduler/                  # scheduler Lambda + 2 SFN state machines + EventBridge cron + alarms (#3)
 │   ├── api/                        # FastAPI Lambda + API Gateway HTTP API + IAM (#4)
+│   ├── web/                        # S3 + CloudFront + OAC + Route 53 + GitHub OIDC role per env (#5)
 │   └── setup-iam.sh                # one-time NewsAggregator{Core,Compute}Access groups
-├── web/                            # Next.js frontend (#5)
+├── web/                            # Next.js frontend (static export, #5) — Tailwind v4 + shadcn + Clerk SPA SDK + TanStack Query + RHF/Zod
 ├── scripts/                        # dev utilities (reset_db.py, seed_user.py)
 ├── tests/integration/              # testcontainers-postgres integration tests
 ├── docs/
@@ -306,6 +307,38 @@ See `infra/README.md` § "Sub-project #4 — API + Auth" for full
 lifecycle, IAM scope (deliberately narrow — only `states:StartExecution`
 on the exact remix ARN), and rollback recipe.
 
+### Sub-project #5 (Frontend) — operational commands
+
+A Next.js static-export app at `digest.patrickcmd.dev` (prod) /
+`dev-digest.patrickcmd.dev` / `test-digest.patrickcmd.dev`. Hosted on
+S3 + CloudFront via per-env Terraform workspace. Auth via Clerk's
+hosted Account Portal (`@clerk/react`, NOT `@clerk/nextjs`).
+Reads the same JWT template `news-api` that the backend's #4 smoke
+uses — single source of truth for the email + name claims contract.
+
+```sh
+# Local dev
+make web-install                              # pnpm install --ignore-scripts
+make web-dev                                  # next dev on :3000
+make web-test
+make web-typecheck
+make web-lint
+make web-osv                                  # OSV-Scanner
+
+# Deploy / destroy via workflow_dispatch
+make web-deploy-dev                           # gh workflow run
+make web-deploy-test
+make web-deploy-prod                          # gated by GitHub Environment reviewer
+make web-destroy-dev                          # confirms with typed prompt
+```
+
+The frontend is **purely a client** of the API (#4) — no direct
+Supabase / Step Functions / Clerk Backend API calls. JWT injected
+via `useApiClient` hook calling `getToken({ template: "news-api" })`.
+
+See `infra/README.md` § "Sub-project #5 — Frontend" for full
+lifecycle, GitHub Environment setup, and rollback recipe.
+
 ## What NOT to do
 
 Anti-patterns that will break invariants in this repo. Reject these on review:
@@ -339,6 +372,16 @@ Anti-patterns that will break invariants in this repo. Reject these on review:
 - Do not skip the algorithm whitelist when calling `pyjwt.decode`. Hard-coding `algorithms=["RS256"]` defeats the algorithm-confusion attack class (HS256 token forged with the public key as a shared secret).
 - Do not call `boto3` directly from a route handler. Wrap it in `services/api/src/news_api/clients/<service>.py` so the dependency direction is `routes → clients → boto3`, and the only `import boto3` lives in one focused file.
 - Do not validate JWTs at API Gateway via the `aws_apigatewayv2_authorizer` JWT integration. The lazy-upsert flow needs claims inside the handler anyway, so we'd validate twice; the FastAPI dep is the single source of truth.
+- Do not use `@clerk/nextjs` in the `web/` package. We ship a static export, which is incompatible with Next.js middleware-based auth. Use `@clerk/react` (the SPA flavour) — `<RedirectToSignIn />`, `<UserButton />`, `useAuth().getToken({ template: "news-api" })`.
+- Do not use `output: "standalone"` or default Next.js (which assumes a Node server). The `web/next.config.ts` MUST set `output: "export"` — every page is pre-rendered HTML, no SSR / server actions / middleware.
+- Do not use `npm` or `yarn` in `web/`. The lockfile is `pnpm-lock.yaml` and the security model relies on pnpm's strict resolution. Run `pnpm` commands; the Makefile targets enforce this.
+- Do not run `pnpm install` without `--ignore-scripts` in CI. It's the dominant npm supply-chain attack vector. The Makefile target and `web-ci.yml` workflow both pass it.
+- Do not pin direct deps with `^` or `~` ranges in `web/package.json`. Use exact versions — `pnpm add <pkg>` writes the resolved version verbatim. The lockfile pins transitive.
+- Do not call `boto3` or any AWS SDK from the frontend. Every backend interaction goes through `https://<api>/v1/*` with a Clerk JWT.
+- Do not hardcode API URLs or Clerk keys. They live in `process.env.NEXT_PUBLIC_*`, baked into the build at deploy time per env. Local dev reads from `web/.env.local` (gitignored).
+- Do not commit `web/.env*.local`. They contain real Clerk publishable keys for dev. The `.env.example` is the only one tracked.
+- Do not skip the JWT template — `getToken()` (no template) returns Clerk's default session token which lacks email/name claims, and our backend's `ClerkClaims` Pydantic model requires them. The hook MUST pass `{ template: "news-api" }`.
+- Do not run the `web-deploy.yml` workflow without an `environment:` job-level key. The OIDC IAM role's `sub` claim restricts AssumeRole to `repo:<owner>/<name>:environment:{env}` — omitting the key fails with AccessDenied on every deploy.
 
 ## Security
 

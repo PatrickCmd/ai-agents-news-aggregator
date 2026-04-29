@@ -96,7 +96,17 @@ def cmd_deploy(env: str) -> int:
     key = _upload(s, sha, zip_path)
     sha256 = _b64_sha256(zip_path)
 
-    allowed_origins_csv = os.environ.get("ALLOWED_ORIGINS", "http://localhost:3000")
+    # CORS origins: ALLOWED_ORIGINS env var overrides; otherwise the per-env
+    # frontend subdomain (sub-project #5) is the default. Localhost is allowed
+    # in dev/test so operators can hit the deployed API from a local frontend.
+    if os.environ.get("ALLOWED_ORIGINS"):
+        allowed_origins_csv = os.environ["ALLOWED_ORIGINS"]
+    elif env == "prod":
+        allowed_origins_csv = "https://digest.patrickcmd.dev"
+    elif env == "test":
+        allowed_origins_csv = "https://test-digest.patrickcmd.dev,http://localhost:3000"
+    else:  # dev
+        allowed_origins_csv = "https://dev-digest.patrickcmd.dev,http://localhost:3000"
     allowed_origins_tf = (
         "[" + ",".join(f'"{o.strip()}"' for o in allowed_origins_csv.split(",") if o.strip()) + "]"
     )

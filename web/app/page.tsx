@@ -4,6 +4,7 @@ import { useAuth } from "@clerk/react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { LandingHero } from "@/components/landing/LandingHero";
 import { DigestListSection } from "@/components/digest/DigestListSection";
+import { OnboardingGate } from "@/components/auth/OnboardingGate";
 
 export default function RootPage() {
   const { isLoaded, isSignedIn } = useAuth();
@@ -18,5 +19,14 @@ export default function RootPage() {
     );
   }
 
-  return isSignedIn ? <DigestListSection /> : <LandingHero />;
+  // Signed-in: gate on profile completion before showing digests. New users
+  // (profile_completed_at === null) get redirected to /profile?onboarding=1.
+  // Signed-out: public landing.
+  return isSignedIn ? (
+    <OnboardingGate>
+      <DigestListSection />
+    </OnboardingGate>
+  ) : (
+    <LandingHero />
+  );
 }

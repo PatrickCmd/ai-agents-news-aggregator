@@ -41,7 +41,7 @@ jobs:
           role-to-assume: ${{ vars[format('AWS_DEPLOY_ROLE_ARN_{0}', inputs.service)] }}
           aws-region: us-east-1
 
-      - uses: astral-sh/setup-uv@v3
+      - uses: astral-sh/setup-uv@v7
         with:
           version: "latest"
 

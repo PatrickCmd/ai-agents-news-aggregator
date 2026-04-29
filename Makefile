@@ -531,3 +531,20 @@ web-destroy-prod:           ## DESTRUCTIVE: tear down prod infra (use VERY caref
 tag-web:                    ## tag sub-project #5 (frontend) — bumped after the editorial redesign (web-v0.7.0)
 	git tag -f -a frontend-v0.7.0 -m "Sub-project #5 Frontend — Next.js + Clerk + S3/CloudFront + editorial redesign"
 	@echo "Push with: git push origin frontend-v0.7.0"
+
+# ---------- ci (#6) ----------
+
+.PHONY: lambda-deploy scraper-deploy-ci tag-cicd-ops
+
+lambda-deploy:               ## trigger lambda-deploy.yml workflow (SERVICE=digest ENV=dev required)
+	@test -n "$(SERVICE)" || (echo "SERVICE required: e.g. SERVICE=digest" >&2; exit 1)
+	@test -n "$(ENV)" || (echo "ENV required: e.g. ENV=dev" >&2; exit 1)
+	gh workflow run lambda-deploy.yml -f service=$(SERVICE) -f environment=$(ENV)
+
+scraper-deploy-ci:           ## trigger scraper-deploy.yml workflow (ENV=dev required)
+	@test -n "$(ENV)" || (echo "ENV required: e.g. ENV=dev" >&2; exit 1)
+	gh workflow run scraper-deploy.yml -f environment=$(ENV) -f action=deploy
+
+tag-cicd-ops:                ## tag sub-project #6
+	git tag -f -a cicd-ops-v0.8.0 -m "Sub-project #6 — CI/CD + Ops"
+	@echo "Push with: git push origin cicd-ops-v0.8.0"

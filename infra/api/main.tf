@@ -52,7 +52,7 @@ resource "aws_iam_role_policy" "runtime" {
 
 resource "aws_cloudwatch_log_group" "api" {
   name              = "/aws/lambda/${local.function_name}"
-  retention_in_days = var.log_retention_days
+  retention_in_days = terraform.workspace == "prod" ? 90 : 30
 }
 
 resource "aws_lambda_function" "api" {

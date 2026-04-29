@@ -13,3 +13,48 @@ updates:
       interval: weekly
     open-pull-requests-limit: 5
     labels: ["dependencies", "ci"]
+  - package-ecosystem: terraform
+    directory: "/infra/bootstrap"
+    schedule: { interval: weekly }
+    open-pull-requests-limit: 3
+    labels: ["dependencies", "infra"]
+  - package-ecosystem: terraform
+    directory: "/infra/alerts"
+    schedule: { interval: weekly }
+    open-pull-requests-limit: 3
+    labels: ["dependencies", "infra"]
+  - package-ecosystem: terraform
+    directory: "/infra/scraper"
+    schedule: { interval: weekly }
+    open-pull-requests-limit: 3
+    labels: ["dependencies", "infra"]
+  - package-ecosystem: terraform
+    directory: "/infra/digest"
+    schedule: { interval: weekly }
+    open-pull-requests-limit: 3
+    labels: ["dependencies", "infra"]
+  - package-ecosystem: terraform
+    directory: "/infra/editor"
+    schedule: { interval: weekly }
+    open-pull-requests-limit: 3
+    labels: ["dependencies", "infra"]
+  - package-ecosystem: terraform
+    directory: "/infra/email"
+    schedule: { interval: weekly }
+    open-pull-requests-limit: 3
+    labels: ["dependencies", "infra"]
+  - package-ecosystem: terraform
+    directory: "/infra/scheduler"
+    schedule: { interval: weekly }
+    open-pull-requests-limit: 3
+    labels: ["dependencies", "infra"]
+  - package-ecosystem: terraform
+    directory: "/infra/api"
+    schedule: { interval: weekly }
+    open-pull-requests-limit: 3
+    labels: ["dependencies", "infra"]
+  - package-ecosystem: terraform
+    directory: "/infra/web"
+    schedule: { interval: weekly }
+    open-pull-requests-limit: 3
+    labels: ["dependencies", "infra"]

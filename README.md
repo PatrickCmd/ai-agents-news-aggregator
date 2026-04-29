@@ -12,6 +12,7 @@
 [![Scheduler](https://img.shields.io/badge/sub--project%20%233-scheduler--v0.4.0-success)](https://github.com/PatrickCmd/ai-agents-news-aggregator/releases/tag/scheduler-v0.4.0)
 [![API](https://img.shields.io/badge/sub--project%20%234-api--v0.5.0-success)](https://github.com/PatrickCmd/ai-agents-news-aggregator/releases/tag/api-v0.5.0)
 [![Frontend](https://img.shields.io/badge/sub--project%20%235-frontend--v0.7.0-success)](https://github.com/PatrickCmd/ai-agents-news-aggregator/releases/tag/frontend-v0.7.0)
+[![CI/CD + Ops](https://img.shields.io/badge/sub--project%20%236-cicd--ops--v0.8.0-success)](https://github.com/PatrickCmd/ai-agents-news-aggregator/releases/tag/cicd-ops-v0.8.0)
 [![Python](https://img.shields.io/badge/python-3.12-blue)](.python-version)
 [![Tests](https://img.shields.io/badge/tests-passing-success)](#testing)
 
@@ -88,14 +89,34 @@ working software on its own:
 | **3** | **Scheduler** | `news-scheduler-dev` Lambda + 2 Step Functions state machines (cron pipeline + remix-user) + EventBridge cron + CloudWatch alarms | ✅ shipped |
 | **4** | **API + Auth** | FastAPI on Lambda + API Gateway HTTP API + Clerk JWT (lazy-upsert via FastAPI dep). Six endpoints powering the upcoming Next.js frontend (#5). | ✅ shipped |
 | **5** | **Frontend** | Next.js (static export) + Clerk Account Portal + Tailwind v4 / shadcn (dark-first editorial redesign) + TanStack Query, hosted on S3 + CloudFront. Profile editor, digest history, "remix now" button, YouTube preview for video sources, public landing page. | ✅ shipped |
-| 6 | **CI/CD + Ops** | GitHub Actions deploy pipelines, cross-cutting alerts, runbooks | not started |
+| **6** | **CI/CD + Ops** | workflow_dispatch deploys via OIDC for backend services, per-Lambda CloudWatch alarms → per-env SNS, 3 runbooks, dependabot for Terraform | ✅ shipped |
 
 Each sub-project has its own design spec, implementation plan, Terraform
-module, IAM scope, and release tag. **Sub-projects #0–#3 are deployed and
+module, IAM scope, and release tag. **Sub-projects #0–#6 are deployed and
 live on AWS today** — the daily cron has been verified end-to-end in
 production: scraper triggered via Step Functions HTTP-invoke, polled to
 completion, 19 articles digested in parallel, 1 user ranked, 1 email
 delivered via Resend — all in 2m24s.
+
+---
+
+## Frontend Preview
+
+Sub-project #5 ships a dark-first editorial reader at
+[dev-digest.patrickcmd.dev](https://dev-digest.patrickcmd.dev). Public
+landing for signed-out visitors; authenticated digest list, detail, and
+profile editor for signed-in users. YouTube embed for video sources via
+the privacy-enhanced `youtube-nocookie.com` host.
+
+| Public landing | Digest detail with YouTube preview |
+|---|---|
+| ![Landing hero](docs/img/web-landing.webp) | ![Digest detail](docs/img/web-digest-detail.webp) |
+
+Typography: [Fraunces](https://fonts.google.com/specimen/Fraunces) for
+display, [Geist](https://vercel.com/font) for body, Geist Mono for
+metadata (dates, scores, ranks). Single warm-amber accent
+(`oklch(0.78 0.16 65)`) on warm-slate dark
+(`oklch(0.16 0.012 245)`) — never pure black, never violet.
 
 ---
 
@@ -422,7 +443,7 @@ artefact).
 | 3 | Scheduler + Orchestration | `scheduler-v0.4.0` | ✅ Lambda + 2 Step Functions + EventBridge cron |
 | 4 | API + Auth | `api-v0.5.0` | ✅ Lambda + API Gateway HTTP API + IAM scoped to remix SFN |
 | 5 | Frontend | `frontend-v0.7.0` | ✅ Next.js static export + S3 + CloudFront + Clerk + Route 53 + editorial redesign |
-| 6 | CI/CD + Ops | — | not started |
+| 6 | CI/CD + Ops | `cicd-ops-v0.8.0` | ✅ Backend OIDC deploys + per-Lambda alarms + runbooks + dependabot |
 
 **End-to-end verified in production:** the cron pipeline ran on
 2026-04-27 in 2m24s — scraper picked up 19 new articles (1 YouTube,
@@ -687,6 +708,29 @@ See [infra/README.md](infra/README.md) § "Sub-project #5 — Frontend"
 for the full deploy lifecycle, GitHub Environment configuration, and
 failure mode reference.
 
+## Running CI/CD + Ops (#6)
+
+Backend services deploy via `workflow_dispatch` with OIDC. Per-Lambda alarms publish to a per-env SNS topic (prod-only email subscription). Three runbooks cover the most common failure modes.
+
+```sh
+# CI-triggered deploys
+make lambda-deploy SERVICE=digest ENV=dev
+make lambda-deploy SERVICE=api ENV=prod        # gated by GitHub Environment reviewer
+make scraper-deploy-ci ENV=dev
+
+# Watch the latest run
+gh run watch
+
+# Manual SNS publish (verification)
+aws sns publish \
+  --topic-arn $(cd infra/alerts && terraform output -raw alerts_topic_arn) \
+  --message "test" --profile aiengineer
+```
+
+Sub-project #6 introduces 18 IAM roles (6 services × 3 envs), 10 new CloudWatch alarms (5 services × 2 metrics — Errors, Throttles), and 3 SNS topics (one per env, with the prod topic subscribed to your email). 3 existing alarms (`api_5xx`, `cron_failed`, `cron_stale`) gain `alarm_actions` so they now reach your inbox.
+
+See [infra/README.md](infra/README.md) § "Sub-project #6 — CI/CD + Ops" for apply order, GitHub Environment configuration, and failure-mode reference. Runbooks live in [docs/runbooks/](docs/runbooks/).
+
 ---
 
 ## Deploying to AWS
@@ -946,13 +990,9 @@ spec but matter in production. The biggest ones from this project:
 
 ## Roadmap
 
-| Sub-project | Status | Next milestone |
-|---|---|---|
-| #4 — API + Auth | not started | Clerk-driven onboarding flow + `/digests` endpoints + `/remix` endpoint that triggers `news-remix-user-dev` |
-| #5 — Frontend | not started | Next.js 15 + Clerk + S3/CloudFront, profile editor, digest history, "remix now" button |
-| #6 — CI/CD + Ops | not started | GitHub Actions deploy pipelines per sub-project, cross-cutting alerts, runbooks, paid Resend plan for production |
+All seven sub-projects (#0–#6) have shipped — see [Project Status](#project-status) for the current tag per sub-project.
 
-Stretch goals once the seven sub-projects ship:
+Stretch goals beyond the initial seven:
 
 - **Multi-tenant SaaS** — Clerk Organisations, per-org sources, pricing tiers.
 - **Per-user source weights** — instead of a global `sources.yml`, each

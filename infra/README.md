@@ -595,3 +595,76 @@ To destroy a single env entirely (keeps Route 53 zone, ACM cert, OIDC provider):
 ```sh
 make web-destroy-dev
 ```
+
+## Sub-project #6 — CI/CD + Ops
+
+`infra/alerts/` owns the per-env SNS topic + (prod-only) email subscription + SSM parameter publishing the topic ARN. Every per-service alarm reads the SSM parameter via `data.aws_ssm_parameter.alerts_arn` and wires `alarm_actions = [data.aws_ssm_parameter.alerts_arn.value]`. SNS subscription confirmation in prod requires clicking the AWS confirmation email (one-time, after first apply).
+
+### Apply order (first-time bootstrap of #6)
+
+```sh
+# 1. Alerts module — must be applied first (other modules read its SSM param).
+ACCT=$(aws sts get-caller-identity --profile aiengineer --query Account --output text)
+cd infra/alerts
+terraform init \
+  -backend-config="bucket=news-aggregator-tf-state-$ACCT" \
+  -backend-config="key=alerts/terraform.tfstate" \
+  -backend-config="region=us-east-1" \
+  -backend-config="profile=aiengineer"
+terraform workspace new dev    # repeat for test, prod
+terraform apply
+cd -
+
+# 2. Re-apply each service module — adds OIDC role + alarms (no destructive changes).
+for svc in digest editor email scheduler api scraper; do
+  cd "infra/$svc"
+  terraform workspace select dev
+  terraform apply
+  cd -
+done
+```
+
+### GitHub Environment configuration
+
+For each env (`dev`, `test`, `prod`), set Settings → Environments → `<env>` → Variables:
+
+- `AWS_ACCOUNT_ID` — your AWS account ID
+- `AWS_DEPLOY_ROLE_ARN` — Terraform output `gh_actions_role_arn` from `infra/scraper/`
+- `AWS_DEPLOY_ROLE_ARN_digest` — same from `infra/digest/`
+- `AWS_DEPLOY_ROLE_ARN_editor` — from `infra/editor/`
+- `AWS_DEPLOY_ROLE_ARN_email` — from `infra/email/`
+- `AWS_DEPLOY_ROLE_ARN_scheduler` — from `infra/scheduler/`
+- `AWS_DEPLOY_ROLE_ARN_api` — from `infra/api/`
+
+> `format()` in `lambda-deploy.yml` produces lowercase suffixes (e.g. `AWS_DEPLOY_ROLE_ARN_digest`). Use lowercase names exactly as listed.
+
+For `prod` only:
+- Required reviewer (Settings → Environments → `prod` → Required reviewers)
+
+### Trigger deploys
+
+```sh
+make scraper-deploy-ci ENV=dev                    # workflow_dispatch
+make lambda-deploy SERVICE=digest ENV=dev         # workflow_dispatch
+gh run watch                                      # tail latest run
+```
+
+### Alarm verification
+
+After applying alerts to prod and confirming the SNS subscription email:
+
+```sh
+aws sns publish \
+  --topic-arn $(cd infra/alerts && terraform workspace select prod >/dev/null && terraform output -raw alerts_topic_arn) \
+  --message "test from cicd-ops-v0.8.0 verification" \
+  --profile aiengineer
+```
+
+Confirm email lands.
+
+### Failure modes
+
+- **`AssumeRoleWithWebIdentity` AccessDenied.** The workflow job is missing `environment: <env>` or the GitHub Environment doesn't exist or the role's `sub` claim doesn't match. Verify the workflow has `environment: ${{ inputs.environment }}` at the JOB level.
+- **`alarm_actions` not firing in prod.** SNS subscription not yet confirmed — check the inbox of `var.alert_email` for the AWS confirmation email and click "Confirm subscription".
+- **Per-Lambda alarm in `INSUFFICIENT_DATA`.** `treat_missing_data = "notBreaching"` keeps it green when there's no traffic. Force an error to verify wiring (see `docs/runbooks/cron-pipeline-failure.md`).
+- **Terraform apply on alerts fails with `aws_sns_topic_subscription` empty endpoint.** You're applying `prod` workspace without setting `alert_email` in `terraform.tfvars`. Set it.

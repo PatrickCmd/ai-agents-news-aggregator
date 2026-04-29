@@ -1,0 +1,51 @@
+name: lambda-deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      service:
+        type: choice
+        description: "Service to deploy"
+        options: [digest, editor, email, scheduler, api]
+      environment:
+        type: choice
+        description: "Target env"
+        options: [dev, test, prod]
+        default: dev
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency: lambda-${{ inputs.service }}-${{ inputs.environment }}
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    # IMPORTANT: this job-level `environment` key satisfies the OIDC sub-claim.
+    # The IAM role's sub restriction is `repo:<owner>/<name>:environment:{env}`
+    # — without it, AssumeRole returns AccessDenied.
+    environment: ${{ inputs.environment }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          # Per-service role ARN looked up by GitHub var name. format() is plain
+          # string interpolation — the result is lowercase because the `service`
+          # choice options are lowercase strings (digest, editor, etc.), so the
+          # produced var name is e.g. AWS_DEPLOY_ROLE_ARN_digest.
+          # GitHub Environment vars must be set with lowercase suffixes matching
+          # the choice option strings exactly.
+          role-to-assume: ${{ vars[format('AWS_DEPLOY_ROLE_ARN_{0}', inputs.service)] }}
+          aws-region: us-east-1
+
+      - uses: astral-sh/setup-uv@v3
+        with:
+          version: "latest"
+
+      - run: uv python install 3.12
+
+      - name: Deploy via scripts/lambda-deploy.sh
+        run: ./scripts/lambda-deploy.sh ${{ inputs.service }} ${{ inputs.environment }}

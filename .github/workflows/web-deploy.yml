@@ -32,7 +32,7 @@ jobs:
     # this key will break deploys with AccessDenied on AssumeRole.
     environment: ${{ inputs.environment }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - uses: aws-actions/configure-aws-credentials@v4
         with:

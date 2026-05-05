@@ -30,7 +30,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - uses: aws-actions/configure-aws-credentials@v4
+      - uses: aws-actions/configure-aws-credentials@v6
         with:
           # Per-service role ARN looked up by GitHub var name. format() is plain
           # string interpolation — the result is lowercase because the `service`

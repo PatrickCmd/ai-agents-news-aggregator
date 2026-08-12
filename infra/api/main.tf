@@ -2,7 +2,10 @@ locals {
   function_name           = "news-api-${terraform.workspace}"
   ssm_prefix              = "/news-aggregator/${terraform.workspace}"
   lambda_artifacts_bucket = "news-aggregator-lambda-artifacts-${data.aws_caller_identity.current.account_id}"
-  remix_sfn_arn           = data.terraform_remote_state.scheduler.outputs.remix_state_machine_arn
+  # try(): the scheduler module may already be destroyed (its state empty)
+  # when this module is being torn down — "" keeps destroy plannable, and an
+  # accidental apply without the scheduler still fails loudly at IAM.
+  remix_sfn_arn           = try(data.terraform_remote_state.scheduler.outputs.remix_state_machine_arn, "")
 }
 
 resource "aws_iam_role" "lambda_exec" {

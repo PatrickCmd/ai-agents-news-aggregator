@@ -450,6 +450,7 @@ tag-api:                    ## tag sub-project #4
         web-deploy-local-dev web-deploy-local-test web-deploy-local-prod \
         web-deploy-dev web-deploy-test web-deploy-prod \
         web-destroy-dev web-destroy-test web-destroy-prod \
+        web-destroy-dev-local \
         tag-web
 
 web-install:                ## install pnpm deps (--ignore-scripts)
@@ -527,6 +528,18 @@ web-destroy-test:           ## DESTRUCTIVE: tear down test infra
 web-destroy-prod:           ## DESTRUCTIVE: tear down prod infra (use VERY carefully)
 	@read -p "Type 'destroy-prod' to confirm: " c && [ "$$c" = "destroy-prod" ] || (echo aborted; exit 1)
 	gh workflow run web-deploy.yml -f environment=prod -f action=destroy
+
+web-destroy-dev-local:      ## DESTRUCTIVE: tear down dev infra locally (full Terraform access via AWS_PROFILE; the CI role can't destroy)
+	@read -p "Type 'destroy-dev-local' to confirm: " c && [ "$$c" = "destroy-dev-local" ] || (echo aborted; exit 1)
+	@cd infra/web && terraform workspace select dev >/dev/null
+	cd infra/web && AWS_PROFILE=aiengineer terraform destroy \
+	  -var=subdomain=dev-digest.patrickcmd.dev
+
+.PHONY: infra-destroy
+
+infra-destroy:              ## DESTRUCTIVE: destroy infra module(s) locally: SERVICE=<name|all> [ENV=dev] (see scripts/infra-destroy.sh)
+	@test -n "$(SERVICE)" || (echo "SERVICE required: e.g. SERVICE=api or SERVICE=all" >&2; exit 1)
+	./scripts/infra-destroy.sh --env $(or $(ENV),dev) $(SERVICE)
 
 tag-web:                    ## tag sub-project #5 (frontend) — bumped after the editorial redesign (web-v0.7.0)
 	git tag -f -a frontend-v0.7.0 -m "Sub-project #5 Frontend — Next.js + Clerk + S3/CloudFront + editorial redesign"
